@@ -1,0 +1,111 @@
+version: 1
+project:
+  name: wc-basic-product-search
+  description: Plugin básico de búsqueda de productos para WooCommerce
+  methodology: parallel-agents
+agents:
+  - id: product_manager
+    role: Product Manager
+    goal: Garantizar alineación funcional y evolución futura del plugin
+  - id: tech_lead
+    role: Tech Lead WordPress
+    goal: Definir arquitectura técnica y estándares de código
+  - id: backend_dev
+    role: Backend Developer
+    goal: Implementar lógica PHP y consultas WooCommerce
+  - id: frontend_dev
+    role: Frontend Developer
+    goal: Implementar formulario, resultados y estilos básicos
+  - id: qa
+    role: QA Engineer
+    goal: Validar funcionamiento, compatibilidad y errores
+tasks:
+  - id: prd_review
+    title: Revisión del PRD
+    owner: product_manager
+    description: |
+      Revisar el PRD y validar que el alcance v1 esté claramente definido
+      y alineado con el usuario final (cliente de tienda online).
+    outputs:
+      - prd_validated
+    completed: true
+  - id: architecture_definition
+    title: Definición de arquitectura del plugin
+    owner: tech_lead
+    depends_on:
+      - prd_review
+    description: |
+      Definir estructura de carpetas, clases principales, hooks de WordPress
+      y estrategia de extensibilidad futura.
+    outputs:
+      - architecture_doc
+  - id: plugin_bootstrap
+    title: Creación del esqueleto del plugin
+    owner: backend_dev
+    depends_on:
+      - architecture_definition
+    description: |
+      Crear el archivo principal del plugin, carga de dependencias,
+      comprobación de WooCommerce activo y registro inicial.
+    outputs:
+      - plugin_base
+  - id: search_logic
+    title: Implementación de la lógica de búsqueda
+    owner: backend_dev
+    depends_on:
+      - plugin_bootstrap
+    description: |
+      Implementar la consulta de productos usando WP_Query o WC_Product_Query,
+      incluyendo sanitización y paginación básica.
+    outputs:
+      - search_engine
+  - id: shortcode_form
+    title: Implementación del shortcode y formulario
+    owner: frontend_dev
+    depends_on:
+      - plugin_bootstrap
+    description: |
+      Crear el shortcode del buscador y el formulario HTML accesible
+      orientado a clientes finales.
+    outputs:
+      - search_form
+  - id: results_template
+    title: Plantilla de resultados
+    owner: frontend_dev
+    depends_on:
+      - search_logic
+    description: |
+      Implementar la plantilla de resultados con imagen, título, precio
+      y enlace al producto.
+    outputs:
+      - results_template
+  - id: styles
+    title: Estilos básicos del buscador
+    owner: frontend_dev
+    depends_on:
+      - shortcode_form
+    description: |
+      Crear estilos CSS mínimos y fácilmente sobrescribibles por el theme.
+    outputs:
+      - frontend_styles
+  - id: integration_testing
+    title: Testing de integración
+    owner: qa
+    depends_on:
+      - results_template
+      - styles
+    description: |
+      Probar el plugin con distintos themes, tamaños de catálogo
+      y versiones recientes de WooCommerce.
+    outputs:
+      - test_report
+  - id: final_review
+    title: Revisión final y preparación v1
+    owner: tech_lead
+    depends_on:
+      - integration_testing
+    description: |
+      Revisión final del código, estándares WordPress y preparación
+      para release v1.
+    outputs:
+      - release_ready
