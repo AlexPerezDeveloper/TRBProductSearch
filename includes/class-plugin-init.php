@@ -64,6 +64,7 @@ class Plugin_Init
         $this->register_hooks();
         \TRB_Product_Search\Ajax_Handler::get_instance()->init();
         \TRB_Product_Search\Settings::get_instance()->init();
+        \TRB_Product_Search\Typo_Corrector::get_instance()->init();
     }
 
     /**
@@ -76,6 +77,7 @@ class Plugin_Init
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-search-results.php';
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-ajax-handler.php';
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-settings.php';
+        require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-typo-corrector.php';
     }
 
     /**
