@@ -78,6 +78,8 @@ class Plugin_Init
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-ajax-handler.php';
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-settings.php';
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-typo-corrector.php';
+        require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-sku-search.php';
+        require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-attributes-search.php';
     }
 
     /**

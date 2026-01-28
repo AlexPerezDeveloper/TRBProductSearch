@@ -21,6 +21,20 @@ class Search_Query
     private $current_search_terms = array();
 
     /**
+     * SKU search instance.
+     *
+     * @var SKU_Search
+     */
+    private $sku_search;
+
+    /**
+     * Attributes search instance.
+     *
+     * @var Attributes_Search
+     */
+    private $attributes_search;
+
+    /**
      * Execute the search.
      *
      * @param string $term Search term.
@@ -28,6 +42,10 @@ class Search_Query
      */
     public function search($term)
     {
+        // Initialize search instances
+        $this->sku_search = new SKU_Search();
+        $this->attributes_search = new Attributes_Search();
+
         $args = array(
             'post_type' => 'product',
             'post_status' => 'publish',
@@ -59,6 +77,18 @@ class Search_Query
             }
         }
 
+        // Add SKU meta query if enabled
+        $sku_meta_query = $this->sku_search->build_meta_query($term);
+        if ($sku_meta_query) {
+            $args['meta_query'] = $sku_meta_query;
+        }
+
+        // Add attributes tax query if enabled
+        $attributes_tax_query = $this->attributes_search->build_tax_query($term);
+        if ($attributes_tax_query) {
+            $args['tax_query'] = $attributes_tax_query;
+        }
+
         // Allow modifying args
         $args = apply_filters('trb_product_search_args', $args, $term);
 
@@ -66,15 +96,25 @@ class Search_Query
         if (count($search_terms) > 1) {
             $this->current_search_terms = $search_terms;
             add_filter('posts_search', array($this, 'synonym_search_filter'), 10, 2);
+
+            // Add priority ordering for exact SKU matches
+            add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
+
             $args['s'] = $term; // Trigger search logic
 
             $query = new \WP_Query($args);
 
             remove_filter('posts_search', array($this, 'synonym_search_filter'), 10);
+            remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
             $this->current_search_terms = array();
         } else {
+            // Add priority ordering for exact SKU matches
+            add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
+
             $args['s'] = $term;
             $query = new \WP_Query($args);
+
+            remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
         }
 
         return $query;
@@ -115,5 +155,28 @@ class Search_Query
         $search .= ")";
 
         return $search;
+    }
+
+    /**
+     * Priority ordering for exact SKU matches.
+     *
+     * @param string    $orderby  Current orderby clause.
+     * @param \WP_Query $wp_query WP_Query instance.
+     * @return string Modified orderby clause.
+     */
+    public function priority_orderby($orderby, $wp_query)
+    {
+        global $wpdb;
+
+        if (empty($wp_query->query_vars['s'])) {
+            return $orderby;
+        }
+
+        $term = esc_sql($wpdb->esc_like($wp_query->query_vars['s']));
+
+        // Prioritize exact SKU matches first, then by title
+        $sku_priority = "IF(pm.meta_key = '_sku' AND pm.meta_value = '{$term}', 1, 0) DESC";
+
+        return "{$sku_priority}, {$wpdb->posts}.post_title ASC";
     }
 }
