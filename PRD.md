@@ -2,7 +2,7 @@
 
 ## 1. Visión General
 
-Desarrollar un **plugin básico para WordPress** que añada un **buscador de productos para WooCommerce**, enfocado en simplicidad, rendimiento aceptable y extensibilidad futura.
+Desarrollar un **plugin básico para WordPress** que añada un **buscador de productos para WooCommerce**, enfocado en simplicidad, rendimiento aceptable y extensibilidad futura. Incluye funcionalidad de búsqueda en tiempo real (AJAX) con resultados desplegables.
 
 El objetivo inicial es permitir a los usuarios finales encontrar productos de forma rápida mediante un campo de búsqueda, sin funcionalidades avanzadas (filtros complejos, IA, etc.), dejando una base sólida para iterar en el futuro.
 
@@ -52,6 +52,8 @@ El objetivo inicial es permitir a los usuarios finales encontrar productos de fo
 
    * Input de texto.
    * Envío manual (botón o enter).
+   * **[NUEVO]** Búsqueda en tiempo real al escribir (mínimo 3 caracteres).
+   * **[NUEVO]** Resultados mostrados en un desplegable bajo el input.
 
 2. **Resultados de búsqueda**
 
@@ -94,10 +96,10 @@ El objetivo inicial es permitir a los usuarios finales encontrar productos de fo
 
 1. El usuario accede a una página con el buscador.
 2. Introduce texto en el campo de búsqueda.
-3. Envía el formulario.
-4. El plugin procesa la búsqueda.
-5. Se muestran los productos coincidentes.
-6. El usuario hace clic en un producto y accede a su ficha.
+3. Si supera los 3 caracteres, se lanza una petición AJAX.
+4. Se muestran los resultados en un desplegable.
+5. El usuario hace clic en un producto y accede a su ficha.
+6. Alternativamente, envía el formulario para ver resultados en página completa.
 
 ---
 
@@ -119,7 +121,8 @@ trb-product-search/
 │   ├── class-plugin-init.php
 │   ├── class-search-form.php
 │   ├── class-search-query.php
-│   └── class-search-results.php
+│   ├── class-search-results.php
+│   └── class-ajax-handler.php
 └── templates/
     └── results.php
 ```

@@ -62,6 +62,7 @@ class Plugin_Init
 
         $this->load_includes();
         $this->register_hooks();
+        \TRB_Product_Search\Ajax_Handler::get_instance()->init();
     }
 
     /**
@@ -72,6 +73,7 @@ class Plugin_Init
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-search-form.php';
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-search-query.php';
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-search-results.php';
+        require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-ajax-handler.php';
     }
 
     /**
@@ -97,6 +99,12 @@ class Plugin_Init
     public function enqueue_scripts()
     {
         wp_enqueue_style('trb-product-search-style', TRB_PRODUCT_SEARCH_URL . 'assets/css/search.css', array(), TRB_PRODUCT_SEARCH_VERSION);
+        wp_enqueue_script('trb-product-search-js', TRB_PRODUCT_SEARCH_URL . 'assets/js/search.js', array('jquery'), TRB_PRODUCT_SEARCH_VERSION, true);
+
+        wp_localize_script('trb-product-search-js', 'trb_search_vars', array(
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('trb_search_nonce'),
+        ));
     }
 
     /**
