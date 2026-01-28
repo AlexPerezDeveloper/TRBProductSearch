@@ -114,7 +114,7 @@ trb-product-search/
 ├── readme.txt
 ├── assets/
 │   ├── css/
-│   │   └── search.css
+│   └── search.css
 │   └── js/
 │       └── search.js
 ├── includes/
@@ -207,16 +207,19 @@ trb-product-search/
 
 ---
 
-## 12. Extensibilidad Futura
+## 12. Extensibilidad Futura (Roadmap)
 
-Funcionalidades previstas para futuras versiones:
+Próximas versiones incluirán:
 
-* Autocompletado AJAX.
-* Filtros por categoría, precio y atributos.
-* Búsqueda por SKU.
-* Ranking de relevancia.
-* Caché de resultados.
-* Integración con bloques Gutenberg.
+1.  **Skeleton loaders**: Mejorar la experiencia visual mientras cargan los resultados.
+2.  **Debounce en inputs**: Optimizar las peticiones AJAX al escribir.
+3.  **Soporte para sinónimos**: Permitir asociar términos de búsqueda alternativos (ej: "zapatillas" -> "deportivas").
+4.  **Corrección básica de errores tipográficos**: Manejo de errores leves al escribir.
+5.  **Caché de resultados**: Almacenar búsquedas frecuentes para mejorar velocidad.
+6.  **Indexación interna**: Tabla personalizada para búsquedas más rápidas.
+7.  **Consultas optimizadas**: Refinamiento de queries SQL/WP_Query.
+8.  **Lazy loading de imágenes**: Carga diferida de imágenes en resultados.
+9.  **Compatibilidad con catálogos grandes**: Optimizaciones escalables.
 
 ---
 
