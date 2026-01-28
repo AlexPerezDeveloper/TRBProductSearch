@@ -63,6 +63,7 @@ class Plugin_Init
         $this->load_includes();
         $this->register_hooks();
         \TRB_Product_Search\Ajax_Handler::get_instance()->init();
+        \TRB_Product_Search\Settings::get_instance()->init();
     }
 
     /**
@@ -74,6 +75,7 @@ class Plugin_Init
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-search-query.php';
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-search-results.php';
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-ajax-handler.php';
+        require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-settings.php';
     }
 
     /**
