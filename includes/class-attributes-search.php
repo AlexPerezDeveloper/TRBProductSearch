@@ -103,48 +103,26 @@ class Attributes_Search
 
         global $wpdb;
 
-        // 1. Find matching Term IDs
-        // We look for terms in the selected taxonomies where the name matches the search term
-        $taxonomies_placeholder = "'" . implode("','", array_map('esc_sql', $selected_taxonomies)) . "'";
+        // Escapar taxonomías para uso seguro en IN clause
+        $taxonomies = array_map('esc_sql', $selected_taxonomies);
+        $taxonomies_placeholder = "'" . implode("','", $taxonomies) . "'";
         $wildcard = '%';
         $like_term = $wpdb->esc_like($term);
 
-        $term_ids_sql = $wpdb->prepare(
-            "SELECT DISTINCT t.term_id 
-            FROM {$wpdb->terms} t 
-            INNER JOIN {$wpdb->term_taxonomy} tt ON t.term_id = tt.term_id 
-            WHERE tt.taxonomy IN ($taxonomies_placeholder) 
+        // Query única con 3 JOINs
+        $sql = $wpdb->prepare(
+            "SELECT DISTINCT tr.object_id
+            FROM {$wpdb->terms} t
+            INNER JOIN {$wpdb->term_taxonomy} tt ON t.term_id = tt.term_id
+            INNER JOIN {$wpdb->term_relationships} tr ON tt.term_taxonomy_id = tr.term_taxonomy_id
+            WHERE tt.taxonomy IN ($taxonomies_placeholder)
             AND t.name LIKE %s",
             $wildcard . $like_term . $wildcard
         );
 
-        $term_ids = $wpdb->get_col($term_ids_sql);
+        $product_ids = $wpdb->get_col($sql);
 
-        if (empty($term_ids)) {
-            return array();
-        }
-
-        // 2. Find Object IDs (Products) for these terms
-        // term_taxonomy_id is usually same as term_id for 1:1, but strictly we should join or use term_taxonomy_ids.
-        // WP term_relationships links object_id to term_taxonomy_id.
-        // We need matching term_taxonomy_ids.
-        
-        $term_ids_placeholder = implode(',', array_map('intval', $term_ids));
-        
-        // Get tt_ids for these term_ids and taxonomies
-        $tt_ids_sql = "SELECT term_taxonomy_id FROM {$wpdb->term_taxonomy} WHERE term_id IN ($term_ids_placeholder)";
-        $tt_ids = $wpdb->get_col($tt_ids_sql);
-
-        if (empty($tt_ids)) {
-            return array();
-        }
-
-        $tt_ids_placeholder = implode(',', array_map('intval', $tt_ids));
-
-        $objects_sql = "SELECT DISTINCT object_id FROM {$wpdb->term_relationships} WHERE term_taxonomy_id IN ($tt_ids_placeholder)";
-        $product_ids = $wpdb->get_col($objects_sql);
-
-        return array_map('intval', $product_ids);
+        return array_map('intval', $product_ids ?: array());
     }
 
     /**
