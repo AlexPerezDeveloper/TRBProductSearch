@@ -57,6 +57,7 @@ class Cache_Manager
 
     /**
      * Get a value from the cache.
+     * Uses transients for persistence if object cache is not persistent.
      *
      * @param string $key   Cache key.
      * @param string $group Cache group (optional).
@@ -64,6 +65,10 @@ class Cache_Manager
      */
     public function get($key, $group = self::CACHE_GROUP)
     {
+        // Use transients for persistence if no persistent object cache
+        if (!wp_using_ext_object_cache()) {
+            return get_transient($this->get_transient_key($key));
+        }
         return wp_cache_get($key, $group);
     }
 
@@ -78,6 +83,9 @@ class Cache_Manager
      */
     public function set($key, $value, $expiration = 3600, $group = self::CACHE_GROUP)
     {
+        if (!wp_using_ext_object_cache()) {
+            return set_transient($this->get_transient_key($key), $value, $expiration);
+        }
         return wp_cache_set($key, $value, $group, $expiration);
     }
 
@@ -90,7 +98,26 @@ class Cache_Manager
      */
     public function delete($key, $group = self::CACHE_GROUP)
     {
+        if (!wp_using_ext_object_cache()) {
+            return delete_transient($this->get_transient_key($key));
+        }
         return wp_cache_delete($key, $group);
+    }
+
+    /**
+     * Helper to prefix transient keys to avoid collisions and length limits.
+     * Transients have a max length of 172 chars.
+     * 
+     * @param string $key
+     * @return string
+     */
+    private function get_transient_key($key)
+    {
+        // MD5 the key if it's too long, but keep prefix for debugging
+        if (strlen($key) > 40) {
+            return 'trb_' . md5($key);
+        }
+        return 'trb_' . $key;
     }
 
     /**
@@ -151,5 +178,17 @@ class Cache_Manager
             $version = (int) get_option('trb_search_cache_version', 1);
         }
         return $version;
+    }
+
+    /**
+     * Write to debug log if debugging is enabled.
+     *
+     * @param string $message Message to log.
+     */
+    public function debug($message)
+    {
+        if (defined('WP_DEBUG') && WP_DEBUG && defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+            error_log('[TRB Cache] ' . $message);
+        }
     }
 }

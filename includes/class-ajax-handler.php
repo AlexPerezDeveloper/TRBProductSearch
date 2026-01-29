@@ -55,7 +55,10 @@ class Ajax_Handler
      */
     public function handle_search()
     {
-        check_ajax_referer('trb_search_nonce', 'security');
+        if (!check_ajax_referer('trb_search_nonce', 'security', false)) {
+            wp_send_json_error(array('message' => __('Session expired. Please refresh.', 'trb-product-search')));
+            return;
+        }
 
         $term = isset($_GET['term']) ? sanitize_text_field($_GET['term']) : '';
 

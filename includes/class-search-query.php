@@ -60,6 +60,23 @@ class Search_Query
         $this->sku_search = SKU_Search::get_instance();
         $this->attributes_search = Attributes_Search::get_instance();
 
+        // Check cache
+        $cache = Cache_Manager::get_instance();
+        $cache_key = $cache->get_search_key($term);
+        $cached_ids = $cache->get($cache_key);
+
+        if (false !== $cached_ids) {
+            $cache->debug("Hit for term: $term");
+            // If we have cached IDs, we can potentially return early or construct query faster
+            // BUT, WP_Query returns an object, not just IDs.
+            // For now, let's cache the MATCHED IDs (expensive part), and let WP_Query run the final easy fetch.
+            $this->matched_product_ids = $cached_ids;
+            $from_cache = true;
+        } else {
+            $cache->debug("Miss for term: $term");
+            $from_cache = false;
+        }
+
         $args = array(
             'post_type' => 'product',
             'post_status' => 'publish',
@@ -91,14 +108,19 @@ class Search_Query
             }
         }
 
-        // Get matching IDs from SKU (includes variations parents)
-        $sku_ids = $this->sku_search->get_matching_product_ids($term);
-        
-        // Get matching IDs from Attributes
-        $attr_ids = $this->attributes_search->get_matching_product_ids($term);
+        if (!$from_cache) {
+            // Get matching IDs from SKU (includes variations parents)
+            $sku_ids = $this->sku_search->get_matching_product_ids($term);
 
-        // Merge and unique IDs
-        $this->matched_product_ids = array_unique(array_merge($sku_ids, $attr_ids));
+            // Get matching IDs from Attributes
+            $attr_ids = $this->attributes_search->get_matching_product_ids($term);
+
+            // Merge and unique IDs
+            $this->matched_product_ids = array_unique(array_merge($sku_ids, $attr_ids));
+
+            // Cache the result
+            $cache->set($cache_key, $this->matched_product_ids);
+        }
 
         // Allow modifying args
         $args = apply_filters('trb_product_search_args', $args, $term);
@@ -181,7 +203,7 @@ class Search_Query
 
         // Ensure we only join once
         if (strpos($join, 'mt_sku') === false) {
-             $join .= " LEFT JOIN {$wpdb->postmeta} AS mt_sku ON ({$wpdb->posts}.ID = mt_sku.post_id AND mt_sku.meta_key = '_sku') ";
+            $join .= " LEFT JOIN {$wpdb->postmeta} AS mt_sku ON ({$wpdb->posts}.ID = mt_sku.post_id AND mt_sku.meta_key = '_sku') ";
         }
 
         return $join;
