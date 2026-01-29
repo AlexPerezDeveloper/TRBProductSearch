@@ -633,7 +633,7 @@ if (password_verify($inputPassword, $hash)) {
 
 ## Testing
 
-See [testing-expert](/home/raskardev/.claude/skills/testing-expert/SKILL.md) for complete testing patterns.
+This section covers PHPUnit testing patterns for PHP applications.
 
 ### PHPUnit Example
 
