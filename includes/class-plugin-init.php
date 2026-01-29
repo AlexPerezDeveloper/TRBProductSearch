@@ -91,6 +91,32 @@ class Plugin_Init
     {
         add_action('init', array($this, 'register_shortcodes'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
+        register_activation_hook(TRB_PRODUCT_SEARCH_FILE, array($this, 'activation_routine'));
+    }
+
+    /**
+     * Plugin activation routine to add database indexes.
+     */
+    public function activation_routine()
+    {
+        global $wpdb;
+
+        // Add index to wp_postmeta for SKU searches if not exists
+        // Note: meta_value is LONGTEXT, so we must specify length.
+        $index_name = 'trb_sku_value_index';
+        $meta_table = $wpdb->postmeta;
+
+        // Check if index exists
+        $index_exists = $wpdb->get_results("SHOW INDEX FROM $meta_table WHERE Key_name = '$index_name'");
+
+        if (empty($index_exists)) {
+            $wpdb->query("ALTER TABLE $meta_table ADD INDEX $index_name (meta_key(20), meta_value(50))");
+        }
+
+        // Add index for term relationships if needed (usually covered by core, but for specific optimization)
+        // Core has (object_id, term_taxonomy_id) as PRIMARY and (term_taxonomy_id) as INDEX.
+        // If we query by term_taxonomy_id AND object_id often, the primary key covers it.
+        // So no need to add standard index there unless we have a different access pattern.
     }
 
     /**

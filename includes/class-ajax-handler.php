@@ -70,6 +70,19 @@ class Ajax_Handler
             wp_send_json_error(array('message' => __('Search Query class missing', 'trb-product-search')));
         }
 
+        $cache = Cache_Manager::get_instance();
+        // Create a unique key for the final HTML output
+        $cache_key = 'html_result_' . md5($term);
+        $cached_html = $cache->get($cache_key);
+
+        if (false !== $cached_html) {
+            $cache->debug("Ajax HTML Hit for term: $term");
+            wp_send_json_success(array('html' => $cached_html));
+            return;
+        }
+
+        $cache->debug("Ajax HTML Miss for term: $term");
+
         $query_handler = new Search_Query();
         $query = $query_handler->search($term);
 
@@ -118,6 +131,12 @@ class Ajax_Handler
         }
         echo '</ul>';
         $html = ob_get_clean();
+
+        // Cache the valid HTML result
+        if (isset($html) && !empty($html)) {
+            // Cache for 1 hour
+            $cache->set($cache_key, $html, 3600);
+        }
 
         wp_reset_postdata();
 

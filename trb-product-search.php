@@ -20,6 +20,7 @@ if (!defined('ABSPATH')) {
 define('TRB_PRODUCT_SEARCH_VERSION', '1.0.0');
 define('TRB_PRODUCT_SEARCH_PATH', plugin_dir_path(__FILE__));
 define('TRB_PRODUCT_SEARCH_URL', plugin_dir_url(__FILE__));
+define('TRB_PRODUCT_SEARCH_FILE', __FILE__);
 
 // Require the initialization class.
 require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-plugin-init.php';
