@@ -117,6 +117,30 @@ class SearchQueryTest extends TestCase {
     }
 
     /**
+     * Test custom_search_filter includes matched IDs.
+     */
+    public function test_custom_search_filter_includes_matched_ids() {
+        $query_handler = new \TRB_Product_Search\Search_Query();
+        $reflection = new ReflectionClass($query_handler);
+
+        // Set current search terms
+        $prop_terms = $reflection->getProperty('current_search_terms');
+        $prop_terms->setAccessible(true);
+        $prop_terms->setValue($query_handler, array('test'));
+
+        // Set matched product IDs
+        $prop_ids = $reflection->getProperty('matched_product_ids');
+        $prop_ids->setAccessible(true);
+        $prop_ids->setValue($query_handler, array(101, 202));
+
+        $wp_query = new \WP_Query();
+        $sql = $query_handler->custom_search_filter('', $wp_query);
+
+        $this->assertStringContainsString('ID IN (101,202)', $sql, 'SQL should contain ID IN clause');
+        $this->assertStringContainsString('OR', $sql, 'SQL should use OR logic');
+    }
+
+    /**
      * Test search filter handles empty terms.
      */
     public function test_custom_search_filter_with_empty_terms() {

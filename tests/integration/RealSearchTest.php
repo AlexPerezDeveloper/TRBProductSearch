@@ -207,9 +207,9 @@ class RealSearchTest extends TestCase
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '0');
 
         $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
-        $result = $sku_search->build_meta_query('test-sku');
+        $result = $sku_search->get_matching_product_ids('test-sku');
 
-        $this->assertNull($result, 'SKU search should return null when disabled');
+        $this->assertEmpty($result, 'SKU search should return empty array when disabled');
     }
 
     /**
@@ -220,9 +220,9 @@ class RealSearchTest extends TestCase
         TRB_Product_Search_Tests_Setup::set_option('trb_search_attributes_enabled', '0');
 
         $attr_search = \TRB_Product_Search\Attributes_Search::get_instance();
-        $result = $attr_search->build_tax_query('test');
+        $result = $attr_search->get_matching_product_ids('test');
 
-        $this->assertNull($result, 'Attributes search should return null when disabled');
+        $this->assertEmpty($result, 'Attributes search should return empty array when disabled');
     }
 
     /**

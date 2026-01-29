@@ -42,6 +42,13 @@ class Search_Query
     private $attributes_search;
 
     /**
+     * Matched product IDs from SKU and Attributes.
+     *
+     * @var array
+     */
+    private $matched_product_ids = array();
+
+    /**
      * Execute the search.
      *
      * @param string $term Search term.
@@ -84,44 +91,25 @@ class Search_Query
             }
         }
 
-        // Add SKU meta query if enabled
-        $sku_meta_query = $this->sku_search->build_meta_query($term);
-        if ($sku_meta_query) {
-            $args['meta_query'] = $sku_meta_query;
-        }
+        // Get matching IDs from SKU (includes variations parents)
+        $sku_ids = $this->sku_search->get_matching_product_ids($term);
+        
+        // Get matching IDs from Attributes
+        $attr_ids = $this->attributes_search->get_matching_product_ids($term);
 
-        // Add attributes tax query if enabled
-        $attributes_tax_query = $this->attributes_search->build_tax_query($term);
-        if ($attributes_tax_query) {
-            $args['tax_query'] = $attributes_tax_query;
-        }
+        // Merge and unique IDs
+        $this->matched_product_ids = array_unique(array_merge($sku_ids, $attr_ids));
 
         // Allow modifying args
         $args = apply_filters('trb_product_search_args', $args, $term);
 
-        // Always use custom search filter for better partial matching
+        // Always use custom search filter for partial matching and ID inclusion
         $this->current_search_terms = $search_terms;
         add_filter('posts_search', array($this, 'custom_search_filter'), 10, 2);
 
-        // Add join for SKU ordering (only if not already using meta_query for SKU)
-        $use_sku_join = true;
-        if (isset($args['meta_query']) && !empty($args['meta_query'])) {
-            // Check if SKU is already in meta_query
-            $has_sku_meta = false;
-            if (isset($args['meta_query']['sku_clause'])) {
-                $has_sku_meta = true;
-            } elseif (isset($args['meta_query']['relation']) && is_array($args['meta_query'])) {
-                foreach ($args['meta_query'] as $key => $value) {
-                    if (is_numeric($key) && isset($value['key']) && $value['key'] === '_sku') {
-                        $has_sku_meta = true;
-                        break;
-                    }
-                }
-            }
-            $use_sku_join = !$has_sku_meta;
-        }
-
-        if ($use_sku_join) {
+        // Add join for SKU ordering if SKU search is enabled
+        // We always add this to ensure we can sort by SKU match priority
+        if ($this->sku_search->is_enabled()) {
             add_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10, 2);
             add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
         }
@@ -132,11 +120,12 @@ class Search_Query
 
         // Cleanup filters
         remove_filter('posts_search', array($this, 'custom_search_filter'), 10);
-        if ($use_sku_join) {
+        if ($this->sku_search->is_enabled()) {
             remove_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10);
             remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
         }
         $this->current_search_terms = array();
+        $this->matched_product_ids = array();
 
         return $query;
     }
@@ -167,10 +156,35 @@ class Search_Query
             $conditions[] = "({$wpdb->posts}.post_content LIKE '{$wildcard}{$term}{$wildcard}')";
         }
 
+        // Add ID matches if any
+        if (!empty($this->matched_product_ids)) {
+            $ids_list = implode(',', array_map('intval', $this->matched_product_ids));
+            $conditions[] = "({$wpdb->posts}.ID IN ($ids_list))";
+        }
+
         // Combine with OR - any term match is good enough
         $search = ' AND (' . implode(' OR ', $conditions) . ')';
 
         return $search;
+    }
+
+    /**
+     * Join postmeta for SKU ordering.
+     *
+     * @param string    $join     Current join clause.
+     * @param \WP_Query $wp_query WP_Query instance.
+     * @return string Modified join clause.
+     */
+    public function join_postmeta_for_orderby($join, $wp_query)
+    {
+        global $wpdb;
+
+        // Ensure we only join once
+        if (strpos($join, 'mt_sku') === false) {
+             $join .= " LEFT JOIN {$wpdb->postmeta} AS mt_sku ON ({$wpdb->posts}.ID = mt_sku.post_id AND mt_sku.meta_key = '_sku') ";
+        }
+
+        return $join;
     }
 
     /**

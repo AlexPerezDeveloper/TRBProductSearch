@@ -48,48 +48,70 @@ class SkuSearchTest extends TestCase {
     }
 
     /**
-     * Test build_meta_query returns null when disabled.
+     * Test get_matching_product_ids returns empty array when disabled.
      */
-    public function test_build_meta_query_returns_null_when_disabled() {
+    public function test_get_matching_product_ids_returns_empty_when_disabled() {
         $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '0');
 
-        $result = $sku_search->build_meta_query('TEST-SKU');
+        $result = $sku_search->get_matching_product_ids('TEST-SKU');
 
-        $this->assertNull($result, 'build_meta_query should return null when SKU search is disabled');
+        $this->assertIsArray($result, 'Should return array');
+        $this->assertEmpty($result, 'Should return empty array when disabled');
     }
 
     /**
-     * Test build_meta_query returns array when enabled.
+     * Test get_matching_product_ids returns IDs when enabled.
      */
-    public function test_build_meta_query_returns_array_when_enabled() {
+    public function test_get_matching_product_ids_returns_ids_when_enabled() {
         $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
-
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
 
-        $result = $sku_search->build_meta_query('TEST-SKU');
+        // Mock global wpdb
+        global $wpdb;
+        // Mock get_col to return some post IDs from postmeta
+        $wpdb->mock_results['get_col'] = array(10, 20);
+        
+        // Mock get_results to return post objects for those IDs
+        $wpdb->mock_results['get_results'] = array(
+            (object) array('ID' => 10, 'post_type' => 'product', 'post_parent' => 0),
+            (object) array('ID' => 20, 'post_type' => 'product', 'post_parent' => 0)
+        );
 
-        $this->assertIsArray($result, 'build_meta_query should return an array when enabled');
-        $this->assertArrayHasKey('sku_clause', $result, 'Result should contain sku_clause key');
-    }
-
-    /**
-     * Test build_meta_query contains correct query structure.
-     */
-    public function test_build_meta_query_contains_correct_structure() {
-        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
-        $search_term = 'WIRELESS-HEADPHONES';
-
-        TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
-
-        $result = $sku_search->build_meta_query($search_term);
+        $result = $sku_search->get_matching_product_ids('TEST-SKU');
 
         $this->assertIsArray($result);
-        $this->assertArrayHasKey('sku_clause', $result);
-        $this->assertEquals('_sku', $result['sku_clause']['key'], 'Meta key should be _sku');
-        $this->assertEquals($search_term, $result['sku_clause']['value'], 'Value should match search term');
-        $this->assertEquals('LIKE', $result['sku_clause']['compare'], 'Compare operator should be LIKE');
+        $this->assertContains(10, $result);
+        $this->assertContains(20, $result);
+        
+        // Clean up mock
+        unset($wpdb->mock_results);
+    }
+
+    /**
+     * Test get_matching_product_ids handles variable products.
+     */
+    public function test_get_matching_product_ids_resolves_parents() {
+        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
+        TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
+
+        global $wpdb;
+        // Mock get_col to return a variation ID
+        $wpdb->mock_results['get_col'] = array(15);
+        
+        // Mock get_results to return the variation post object with parent
+        $wpdb->mock_results['get_results'] = array(
+            (object) array('ID' => 15, 'post_type' => 'product_variation', 'post_parent' => 5)
+        );
+
+        $result = $sku_search->get_matching_product_ids('VAR-SKU');
+
+        $this->assertIsArray($result);
+        $this->assertContains(5, $result, 'Should return parent ID for variation match');
+        $this->assertNotContains(15, $result, 'Should not return variation ID');
+        
+        unset($wpdb->mock_results);
     }
 
     /**
@@ -107,22 +129,20 @@ class SkuSearchTest extends TestCase {
 
     /**
      * Test get_exact_sku_match returns product ID when found.
-     *
-     * Note: This test requires database mocking for full integration testing.
-     * In a real WordPress environment with products, it would return the actual product ID.
      */
     public function test_get_exact_sku_match_returns_product_id_when_found() {
         $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
 
-        // This test would require a mock database with product meta data
-        // For unit testing, we verify the method is callable
+        global $wpdb;
+        $wpdb->mock_results['get_var'] = 123;
+
         $result = $sku_search->get_exact_sku_match('WH-001');
 
-        // In test environment without actual products, this will return null
-        // The test verifies the method can be called without errors
-        $this->assertTrue(is_int($result) || is_null($result), 'Should return int or null');
+        $this->assertEquals(123, $result);
+        
+        unset($wpdb->mock_results);
     }
 
     /**
@@ -132,10 +152,15 @@ class SkuSearchTest extends TestCase {
         $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
+        
+        global $wpdb;
+        $wpdb->mock_results['get_var'] = null;
 
         $result = $sku_search->get_exact_sku_match('NONEXISTENT-SKU');
 
         $this->assertNull($result, 'get_exact_sku_match should return null for non-existent SKU');
+        
+        unset($wpdb->mock_results);
     }
 
     /**
@@ -146,42 +171,6 @@ class SkuSearchTest extends TestCase {
         $instance2 = \TRB_Product_Search\SKU_Search::get_instance();
 
         $this->assertSame($instance1, $instance2, 'get_instance should return the same instance');
-    }
-
-    /**
-     * Test build_meta_query with different search terms.
-     */
-    public function test_build_meta_query_with_different_terms() {
-        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
-
-        TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
-
-        $terms = array('WH-001', 'BS-002', 'UC-003');
-
-        foreach ($terms as $term) {
-            $result = $sku_search->build_meta_query($term);
-
-            $this->assertIsArray($result);
-            $this->assertEquals($term, $result['sku_clause']['value'], "Value should match term: {$term}");
-        }
-    }
-
-    /**
-     * Test build_meta_query handles special characters.
-     */
-    public function test_build_meta_query_handles_special_characters() {
-        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
-
-        TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
-
-        $special_terms = array('SKU-001', 'SKU_002', 'SKU/003', 'SKU 004');
-
-        foreach ($special_terms as $term) {
-            $result = $sku_search->build_meta_query($term);
-
-            $this->assertIsArray($result);
-            $this->assertEquals($term, $result['sku_clause']['value']);
-        }
     }
 
     /**
