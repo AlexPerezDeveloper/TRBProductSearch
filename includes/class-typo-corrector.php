@@ -273,27 +273,36 @@ class Typo_Corrector
         foreach ($words as $word) {
             $distance = levenshtein($term, $word);
 
-            // Exact match (distance 0) means no typo, but maybe user searched a substring? 
-            // If the term is present, search should have found it. 
+            // Exact match (distance 0) means no typo, but maybe user searched a substring?
+            // If the term is present, search should have found it.
             // We assume correct() is called when NO results found.
 
             if ($distance === 0) {
                 return false; // It matches a real word, so not a typo (unless meaning is different, but out of scope)
             }
 
-            if ($distance <= 2) { // Threshold for "leves" errors
-                if ($shortest_distance < 0 || $distance < $shortest_distance) {
-                    $shortest_distance = $distance;
+            // Only consider matches that are reasonably close AND
+            // prefer words that start with the same letter for better suggestions
+            $distance_penalty = 0;
+            if (mb_substr($term, 0, 1) !== mb_substr($word, 0, 1)) {
+                $distance_penalty = 2; // Penalize words starting with different letter
+            }
+
+            $effective_distance = $distance + $distance_penalty;
+
+            if ($effective_distance <= 3) { // Slightly higher threshold with penalty
+                if ($shortest_distance < 0 || $effective_distance < $shortest_distance) {
+                    $shortest_distance = $effective_distance;
                     $best_match = $word;
                 }
             }
         }
 
-        // Logic for multi-word phrases? 
+        // Logic for multi-word phrases?
         // V1: Only correcting single word typos or picking the best match for the whole string if it matches a single token?
         // Actually, if user types "zaptilla roja" and "zapatilla" is in index.
         // levenshtein("zaptilla roja", "zapatilla") is huge.
-        // We should tokenize input too. 
+        // We should tokenize input too.
 
         // Improved V1 Logic: Tokenize input, correct individual words.
         $input_tokens = explode(' ', $term);
@@ -301,7 +310,8 @@ class Typo_Corrector
         $has_correction = false;
 
         foreach ($input_tokens as $token) {
-            if (strlen($token) < 3) {
+            if (strlen($token) < 4) {
+                // Don't correct very short tokens
                 $corrected_tokens[] = $token;
                 continue;
             }
@@ -318,9 +328,18 @@ class Typo_Corrector
 
             foreach ($words as $word) {
                 $dist = levenshtein($token, $word);
-                if ($dist <= 2) {
-                    if ($token_shortest_distance < 0 || $dist < $token_shortest_distance) {
-                        $token_shortest_distance = $dist;
+
+                // Apply penalty for different starting letter
+                $dist_penalty = 0;
+                if (mb_substr($token, 0, 1) !== mb_substr($word, 0, 1)) {
+                    $dist_penalty = 2;
+                }
+
+                $effective_dist = $dist + $dist_penalty;
+
+                if ($effective_dist <= 3) {
+                    if ($token_shortest_distance < 0 || $effective_dist < $token_shortest_distance) {
+                        $token_shortest_distance = $effective_dist;
                         $token_best_match = $word;
                     }
                 }
@@ -338,6 +357,6 @@ class Typo_Corrector
             return implode(' ', $corrected_tokens);
         }
 
-        return false;
+        return $best_match;
     }
 }

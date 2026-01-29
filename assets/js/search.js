@@ -25,6 +25,26 @@ jQuery(document).ready(function ($) {
     }
   });
 
+  // Handle form submission for full page search
+  searchForm.on("submit", function (e) {
+    var term = searchInput.val().trim();
+    if (term.length < minChars) {
+      e.preventDefault();
+      dropdown
+        .show()
+        .html(
+          '<div class="trb-no-results">Minimum ' +
+            minChars +
+            " characters required</div>",
+        );
+      return false;
+    }
+
+    // Let the form submit normally to show full results page
+    // The form will add ?trb_q=term to the URL
+    return true;
+  });
+
   function performSearch(term) {
     $.ajax({
       url: trb_search_vars.ajax_url,

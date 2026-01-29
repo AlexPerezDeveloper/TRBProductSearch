@@ -505,6 +505,13 @@ if (!function_exists('wp_reset_postdata')) {
     }
 }
 
+// Mock get_permalink function
+if (!function_exists('get_permalink')) {
+    function get_permalink($post = 0) {
+        return 'http://example.com/product/';
+    }
+}
+
 // Load plugin files for testing
 if (file_exists(__DIR__ . '/../includes/class-plugin-init.php')) {
     require_once __DIR__ . '/../includes/class-plugin-init.php';

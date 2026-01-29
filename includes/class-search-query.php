@@ -99,42 +99,30 @@ class Search_Query
         // Allow modifying args
         $args = apply_filters('trb_product_search_args', $args, $term);
 
-        // If we have multiple terms (synonyms found), we need a custom search query
-        if (count($search_terms) > 1) {
-            $this->current_search_terms = $search_terms;
-            add_filter('posts_search', array($this, 'synonym_search_filter'), 10, 2);
+        // Always use custom search filter for better partial matching
+        $this->current_search_terms = $search_terms;
+        add_filter('posts_search', array($this, 'custom_search_filter'), 10, 2);
+        add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
 
-            // Add priority ordering for exact SKU matches
-            add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
+        $args['s'] = $term; // Trigger search logic
 
-            $args['s'] = $term; // Trigger search logic
+        $query = new \WP_Query($args);
 
-            $query = new \WP_Query($args);
-
-            remove_filter('posts_search', array($this, 'synonym_search_filter'), 10);
-            remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
-            $this->current_search_terms = array();
-        } else {
-            // Add priority ordering for exact SKU matches
-            add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
-
-            $args['s'] = $term;
-            $query = new \WP_Query($args);
-
-            remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
-        }
+        remove_filter('posts_search', array($this, 'custom_search_filter'), 10);
+        remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
+        $this->current_search_terms = array();
 
         return $query;
     }
 
     /**
-     * Modify the search SQL to include synonyms (OR logic).
+     * Modify the search SQL to include synonyms (OR logic) and better partial matching.
      *
      * @param string   $search   The generated search SQL.
      * @param \WP_Query $wp_query The WP_Query instance.
      * @return string Modified search SQL.
      */
-    public function synonym_search_filter($search, $wp_query)
+    public function custom_search_filter($search, $wp_query)
     {
         global $wpdb;
 
@@ -143,7 +131,7 @@ class Search_Query
         }
 
         $search = '';
-        $n = !empty($wp_query->query_vars['exact']) ? '' : '%';
+        $wildcard = '%'; // Always use wildcard for partial matching
 
         $search .= " AND (";
 
@@ -155,7 +143,10 @@ class Search_Query
                 $search .= " OR ";
             }
 
-            $search .= "({$wpdb->posts}.post_title LIKE '{$n}{$term}{$n}') OR ({$wpdb->posts}.post_content LIKE '{$n}{$term}{$n}')";
+            // Search for titles starting with the term (higher priority)
+            // or containing the term anywhere (lower priority)
+            $search .= "({$wpdb->posts}.post_title LIKE '{$term}{$wildcard}') OR ({$wpdb->posts}.post_title LIKE '{$wildcard}{$term}{$wildcard}')";
+
             $first = false;
         }
 
