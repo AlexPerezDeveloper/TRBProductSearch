@@ -102,14 +102,40 @@ class Search_Query
         // Always use custom search filter for better partial matching
         $this->current_search_terms = $search_terms;
         add_filter('posts_search', array($this, 'custom_search_filter'), 10, 2);
-        add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
+
+        // Add join for SKU ordering (only if not already using meta_query for SKU)
+        $use_sku_join = true;
+        if (isset($args['meta_query']) && !empty($args['meta_query'])) {
+            // Check if SKU is already in meta_query
+            $has_sku_meta = false;
+            if (isset($args['meta_query']['sku_clause'])) {
+                $has_sku_meta = true;
+            } elseif (isset($args['meta_query']['relation']) && is_array($args['meta_query'])) {
+                foreach ($args['meta_query'] as $key => $value) {
+                    if (is_numeric($key) && isset($value['key']) && $value['key'] === '_sku') {
+                        $has_sku_meta = true;
+                        break;
+                    }
+                }
+            }
+            $use_sku_join = !$has_sku_meta;
+        }
+
+        if ($use_sku_join) {
+            add_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10, 2);
+            add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
+        }
 
         $args['s'] = $term; // Trigger search logic
 
         $query = new \WP_Query($args);
 
+        // Cleanup filters
         remove_filter('posts_search', array($this, 'custom_search_filter'), 10);
-        remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
+        if ($use_sku_join) {
+            remove_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10);
+            remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
+        }
         $this->current_search_terms = array();
 
         return $query;
@@ -164,39 +190,10 @@ class Search_Query
 
         $term = esc_sql($wpdb->esc_like($wp_query->query_vars['s']));
 
-        // We need to join postmeta table for SKU ordering if not already present
-        if (!isset($wp_query->query_vars['meta_query'])) {
-            // Add the join for postmeta
-            add_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10, 2);
-            // Mark that we added the join so we can remove it
-            $this->orderby_join_added = true;
-        }
-
         // Use the meta_value from the joined postmeta table
+        // The JOIN is added in the search() method
         $sku_priority = "IF(mt_sku.meta_value = '{$term}', 1, 0) DESC";
 
         return "{$sku_priority}, {$wpdb->posts}.post_title ASC";
-    }
-
-    /**
-     * Join postmeta table for SKU ordering.
-     *
-     * @param string   $join    The JOIN clause.
-     * @param \WP_Query $wp_query The WP_Query instance.
-     * @return string Modified JOIN clause.
-     */
-    public function join_postmeta_for_orderby($join, $wp_query)
-    {
-        global $wpdb;
-
-        // Only add join once
-        if (strpos($join, 'mt_sku') === false) {
-            $join .= " LEFT JOIN {$wpdb->postmeta} AS mt_sku ON {$wpdb->posts}.ID = mt_sku.post_id AND mt_sku.meta_key = '_sku'";
-        }
-
-        // Remove this filter after first use
-        remove_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10);
-
-        return $join;
     }
 }
