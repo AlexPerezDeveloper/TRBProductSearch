@@ -2,7 +2,16 @@
 name: wordpress-expert
 description: Expert WordPress development with plugin creation, theme customization, MCP integration, and ecosystem mastery. Desarrollo experto en WordPress con creación de plugins, personalización de temas, integración MCP y dominio del ecosistema.
 
-  **Use when / Usar cuando:** Creating plugins (crear plugins), building themes (construir temas), customizing WordPress sites (personalizar sitios WordPress), integrating MCP for WordPress operations (integrar MCP para operaciones WordPress), developing custom post types (desarrollar custom post types), creating REST API endpoints (crear endpoints REST API), extending WooCommerce (extender WooCommerce), working with WordPress hooks/filters (trabajar con hooks/filtros WordPress), database operations (operaciones de base de datos), WordPress configuration (configuración WordPress), multisite setup (configuración multisite), performance optimization (optimización de rendimiento).
+  **Use when / Usar cuando:** Creating plugins (crear plugins), building themes (construir temas), customizing WordPress sites (personalizar sitios WordPress), integrating MCP for WordPress operations (integrar MCP para operaciones WordPress), developing custom post types (desarrollar custom post types), creating REST API endpoints (crear endpoints REST API), extending WooCommerce (extender WooCommerce), working with WordPress hooks/filters (trabajar con hooks/filtros WordPress), database operations (operaciones de base de datos), WordPress configuration (configuración WordPress), multisite setup (configuración multisite), performance optimization (optimización de rendimiento WordPress).
+
+  **WordPress PHP / PHP WordPress:** WordPress uses PHP with specific patterns and coding standards. For general PHP expertise (PHP 8.3+ features, types, OOP), see [php-expert](/home/raskardev/.claude/skills/php-expert/SKILL.md). For PHP backend patterns (APIs, security, databases), see [backend-expert](/home/raskardev/.claude/skills/backend-expert/SKILL.md).
+
+  **PHP Skills Integration / Integración Skills PHP:**
+  - php-expert: Modern PHP 8.3+, types, OOP, SOLID, Clean Code principles
+  - backend-expert: PHP security, input validation, output escaping, prepared statements
+  - testing-expert: PHPUnit for testing WordPress plugins/themes
+
+  **WordPress-Specific / Específico WordPress:** Hooks (actions/filters), WP REST API, Custom Post Types, Meta boxes, Transients API, wpdb, $wpdb->prepare(), WP_Query, WP Cron, Shortcodes, Widgets, Sidebars, Theme Customizer, Block Editor (Gutenberg), Full Site Editing (FSE).
 ---
 
 # WordPress Expert
@@ -11,7 +20,20 @@ description: Expert WordPress development with plugin creation, theme customizat
 
 This skill provides expert-level WordPress development capabilities, focusing on the WordPress ecosystem, architecture, and best practices. It covers plugin development, theme customization, MCP (Model Context Protocol) integration for WordPress operations, custom post types, REST API development, WooCommerce extensions, and database operations.
 
-**Not covered:** General PHP programming (use general PHP skills for that). This skill focuses specifically on WordPress patterns, APIs, hooks, filters, and ecosystem-specific knowledge.
+## PHP Foundation for WordPress
+
+WordPress is built on PHP. This skill focuses on **WordPress-specific patterns**. For general PHP expertise, the following skills provide the foundation:
+
+| PHP Skill | WordPress Application |
+|-----------|----------------------|
+| **[php-expert](/home/raskardev/.claude/skills/php-expert/SKILL.md)** | PHP 8.3+ features (union types, readonly, match), OOP, SOLID, error handling, design patterns |
+| **[backend-expert](/home/raskardev/.claude/skills/backend-expert/SKILL.md)** | Security (OWASP), input validation, output escaping, prepared statements, JWT auth, logging |
+| **[testing-expert](/home/raskardev/.claude/skills/testing-expert/SKILL.md)** | PHPUnit tests for plugins/themes, mocking WordPress functions |
+
+**WordPress PHP Version Support:**
+- WordPress 6.4+ recommends PHP 8.0+
+- WordPress 6.7+ recommends PHP 8.1+
+- Use modern PHP features where backward compatibility allows
 
 ## Core Capabilities
 
@@ -412,7 +434,9 @@ function custom_product_class( $classname, $product_type ) {
 
 Implement WordPress security standards in all custom code.
 
-**Essential security practices:**
+**Foundation:** See [backend-expert Security](/home/raskardev/.claude/skills/backend-expert/SKILL.md#security) for comprehensive PHP security patterns including OWASP Top 10, SQL injection prevention, XSS prevention, and CSRF protection.
+
+**WordPress-specific security practices:**
 
 1. **Nonce verification:**
 ```php
@@ -507,18 +531,75 @@ add_filter( 'script_loader_tag', 'add_defer_attribute', 10, 2 );
 
 1. **Follow WordPress Coding Standards**: Use WPCS and adhere to WordPress PHP, HTML, CSS, and JavaScript standards
 2. **Use WordPress APIs**: Leverage built-in APIs instead of custom implementations
-3. **Security first**: Always sanitize input, escape output, verify nonces, check capabilities
+3. **Security first**: Always sanitize input, escape output, verify nonces, check capabilities. See [backend-expert Security](/home/raskardev/.claude/skills/backend-expert/SKILL.md#security)
 4. **Make it extensible**: Use hooks and filters to allow others to extend your code
 5. **Translation ready**: Use translation functions (`__()`, `_e()`, `esc_html__()`, etc.)
 6. **Prefix everything**: Use unique prefixes for functions, classes, constants, database tables
 7. **Documentation**: Comment complex logic, document hooks and filters
 8. **Version control**: Use semantic versioning and maintain changelog
-9. **Testing**: Test across WordPress versions, themes, and common plugins
+9. **Testing**: Test across WordPress versions, themes, and common plugins. See [testing-expert](/home/raskardev/.claude/skills/testing-expert/SKILL.md) for PHPUnit patterns
 10. **Performance conscious**: Minimize database queries, cache when appropriate
+11. **Modern PHP**: Apply PHP 8.3+ features where backward compatible. See [php-expert](/home/raskardev/.claude/skills/php-expert/SKILL.md) for modern patterns
+
+## Testing WordPress Code
+
+**Foundation:** See [testing-expert](/home/raskardev/.claude/skills/testing-expert/SKILL.md) for PHPUnit fundamentals, TDD workflow, and testing patterns.
+
+**WordPress-specific testing:**
+
+```php
+// Installing WordPress test suite
+composer require --dev phpunit/phpunit
+composer require --dev yoast/phpunit-polyfills
+
+// phpunit.xml
+<phpunit bootstrap="tests/bootstrap.php">
+    <testsuites>
+        <testsuite name="Plugin Test Suite">
+            <directory>tests/unit</directory>
+            <directory>tests/integration</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>
+
+// tests/bootstrap.php
+$_tests_dir = getenv( 'WP_TESTS_DIR' );
+if ( ! $_tests_dir ) {
+    $_tests_dir = rtrim( sys_get_temp_dir(), '/\\' ) . '/wordpress-tests-lib';
+}
+
+require_once $_tests_dir . '/includes/functions.php';
+
+function _manually_load_plugin() {
+    require dirname( __FILE__ ) . '/../plugin-name.php';
+}
+tests_add_filter( 'muplugins_loaded', '_manually_load_plugin' );
+
+require $_tests_dir . '/includes/bootstrap.php';
+```
+
+**Example unit test:**
+```php
+class Plugin_Test extends \PHPUnit\Framework\TestCase {
+    public function test_plugin_activated() {
+        $this->assertTrue( is_plugin_active( 'plugin-name/plugin-name.php' ) );
+    }
+
+    public function test_custom_post_type_registered() {
+        $this->assertTrue( post_type_exists( 'project' ) );
+    }
+}
+```
 
 ## Resources
 
-### references/
+### PHP Skills Foundation
+**Core PHP skills that support WordPress development:**
+- **[php-expert](/home/raskardev/.claude/skills/php-expert/SKILL.md)**: PHP 8.3+ features, OOP, SOLID, design patterns, error handling, performance optimization
+- **[backend-expert](/home/raskardev/.claude/skills/backend-expert/SKILL.md)**: PHP security (OWASP), input validation, output escaping, prepared statements, JWT auth, logging
+- **[testing-expert](/home/raskardev/.claude/skills/testing-expert/SKILL.md)**: PHPUnit, Pest, TDD, mocking, test coverage for WordPress plugins/themes
+
+### WordPress-specific references/
 - **plugin-patterns.md**: Comprehensive plugin development patterns and architecture
 - **hooks-filters.md**: Reference guide for common WordPress hooks and filters
 - **mcp-operations.md**: WordPress MCP integration patterns and operations
