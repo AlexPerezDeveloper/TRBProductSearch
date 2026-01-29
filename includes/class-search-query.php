@@ -21,6 +21,13 @@ class Search_Query
     private $current_search_terms = array();
 
     /**
+     * Track if orderby join was added.
+     *
+     * @var bool
+     */
+    private $orderby_join_added = false;
+
+    /**
      * SKU search instance.
      *
      * @var SKU_Search
@@ -42,9 +49,9 @@ class Search_Query
      */
     public function search($term)
     {
-        // Initialize search instances
-        $this->sku_search = new SKU_Search();
-        $this->attributes_search = new Attributes_Search();
+        // Initialize search instances using singleton pattern
+        $this->sku_search = SKU_Search::get_instance();
+        $this->attributes_search = Attributes_Search::get_instance();
 
         $args = array(
             'post_type' => 'product',
@@ -174,9 +181,39 @@ class Search_Query
 
         $term = esc_sql($wpdb->esc_like($wp_query->query_vars['s']));
 
-        // Prioritize exact SKU matches first, then by title
-        $sku_priority = "IF(pm.meta_key = '_sku' AND pm.meta_value = '{$term}', 1, 0) DESC";
+        // We need to join postmeta table for SKU ordering if not already present
+        if (!isset($wp_query->query_vars['meta_query'])) {
+            // Add the join for postmeta
+            add_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10, 2);
+            // Mark that we added the join so we can remove it
+            $this->orderby_join_added = true;
+        }
+
+        // Use the meta_value from the joined postmeta table
+        $sku_priority = "IF(mt_sku.meta_value = '{$term}', 1, 0) DESC";
 
         return "{$sku_priority}, {$wpdb->posts}.post_title ASC";
+    }
+
+    /**
+     * Join postmeta table for SKU ordering.
+     *
+     * @param string   $join    The JOIN clause.
+     * @param \WP_Query $wp_query The WP_Query instance.
+     * @return string Modified JOIN clause.
+     */
+    public function join_postmeta_for_orderby($join, $wp_query)
+    {
+        global $wpdb;
+
+        // Only add join once
+        if (strpos($join, 'mt_sku') === false) {
+            $join .= " LEFT JOIN {$wpdb->postmeta} AS mt_sku ON {$wpdb->posts}.ID = mt_sku.post_id AND mt_sku.meta_key = '_sku'";
+        }
+
+        // Remove this filter after first use
+        remove_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10);
+
+        return $join;
     }
 }

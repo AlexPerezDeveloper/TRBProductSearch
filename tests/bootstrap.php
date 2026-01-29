@@ -85,13 +85,13 @@ if (!function_exists('esc_textarea')) {
 
 if (!function_exists('sanitize_text_field')) {
     function sanitize_text_field($str) {
-        return strip_tags($str);
+        return strip_tags((string) $str);
     }
 }
 
 if (!function_exists('sanitize_textarea_field')) {
     function sanitize_textarea_field($str) {
-        return strip_tags($str);
+        return strip_tags((string) $str);
     }
 }
 
@@ -437,6 +437,73 @@ if (!class_exists('WP_Query')) {
 
 // Load test helpers
 require_once __DIR__ . '/helpers.php';
+
+// Mock $wpdb global
+if (!isset($GLOBALS['wpdb'])) {
+    $GLOBALS['wpdb'] = new class {
+        public $posts = 'wp_posts';
+        public $postmeta = 'wp_postmeta';
+        public $terms = 'wp_terms';
+        public $term_taxonomy = 'wp_term_taxonomy';
+        public $prefix = 'wp_';
+
+        public function prepare($query, ...$args) {
+            // Handle array argument (when args contain an array)
+            if (count($args) === 1 && is_array($args[0])) {
+                $args = $args[0];
+            }
+            foreach ($args as $arg) {
+                if (is_numeric($arg)) {
+                    $query = preg_replace('/(%d|%f)/', $arg, $query, 1);
+                } else {
+                    $arg = addslashes((string) $arg);
+                    $query = preg_replace('/(%s)/', "'{$arg}'", $query, 1);
+                }
+            }
+            return $query;
+        }
+
+        public function get_var($query) {
+            return null;
+        }
+
+        public function get_results($query) {
+            return array();
+        }
+
+        public function esc_like($text) {
+            return addcslashes($text, '_%\\');
+        }
+    };
+}
+
+// Mock get_the_ID function
+if (!function_exists('get_the_ID')) {
+    function get_the_ID() {
+        return 1;
+    }
+}
+
+// Mock locate_template function
+if (!function_exists('locate_template')) {
+    function locate_template($template_names, $load = false, $require_once = true) {
+        return '';
+    }
+}
+
+// Mock load_template function
+if (!function_exists('load_template')) {
+    function load_template($_template_file, $require_once = true) {
+        return;
+    }
+}
+
+// Mock wp_reset_postdata function
+if (!function_exists('wp_reset_postdata')) {
+    function wp_reset_postdata() {
+        return;
+    }
+}
 
 // Load plugin files for testing
 if (file_exists(__DIR__ . '/../includes/class-plugin-init.php')) {

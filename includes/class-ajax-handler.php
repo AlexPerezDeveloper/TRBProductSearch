@@ -72,7 +72,7 @@ class Ajax_Handler
 
         if (!$query->have_posts()) {
             // Check for typos
-            $corrector = Typo_Corrector::get_instance();
+            $corrector = \TRB_Product_Search\Typo_Corrector::get_instance();
             $suggestion = $corrector->correct($term);
 
             if ($suggestion) {

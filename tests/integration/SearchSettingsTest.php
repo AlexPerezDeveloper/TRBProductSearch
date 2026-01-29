@@ -25,7 +25,7 @@ class SearchSettingsTest extends TestCase {
      * Test SKU option can be enabled.
      */
     public function test_sku_option_can_be_enabled() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
 
@@ -38,7 +38,7 @@ class SearchSettingsTest extends TestCase {
      * Test SKU option can be disabled.
      */
     public function test_sku_option_can_be_disabled() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '0');
 
@@ -51,7 +51,7 @@ class SearchSettingsTest extends TestCase {
      * Test attributes option can be enabled.
      */
     public function test_attributes_option_can_be_enabled() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_attributes_enabled', '1');
 
@@ -64,7 +64,7 @@ class SearchSettingsTest extends TestCase {
      * Test attributes option can be disabled.
      */
     public function test_attributes_option_can_be_disabled() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_attributes_enabled', '0');
 
@@ -77,7 +77,7 @@ class SearchSettingsTest extends TestCase {
      * Test selected attributes can be saved.
      */
     public function test_selected_attributes_can_be_saved() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
         $expected_attributes = array('pa_color', 'pa_size', 'pa_material');
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_selected_attributes', $expected_attributes);
@@ -91,7 +91,7 @@ class SearchSettingsTest extends TestCase {
      * Test selected attributes returns empty array by default.
      */
     public function test_selected_attributes_returns_empty_array_by_default() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_selected_attributes', array());
 
@@ -105,7 +105,7 @@ class SearchSettingsTest extends TestCase {
      * Test sanitize_checkbox returns '1' for truthy values.
      */
     public function test_sanitize_checkbox_returns_one_for_truthy() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
 
         $truthy_values = array('1', 1, true, 'true');
 
@@ -119,7 +119,7 @@ class SearchSettingsTest extends TestCase {
      * Test sanitize_checkbox returns '0' for falsy values.
      */
     public function test_sanitize_checkbox_returns_zero_for_falsy() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
 
         $falsy_values = array('0', 0, false, 'false', '', 'anything', '2', 'yes');
 
@@ -133,7 +133,7 @@ class SearchSettingsTest extends TestCase {
      * Test sanitize_attributes returns array for valid input.
      */
     public function test_sanitize_attributes_returns_array() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
         $input = array('pa_color', 'pa_size', 'pa_material');
 
         $result = $settings->sanitize_attributes($input);
@@ -146,7 +146,7 @@ class SearchSettingsTest extends TestCase {
      * Test sanitize_attributes returns empty array for non-array input.
      */
     public function test_sanitize_attributes_returns_empty_for_non_array() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
 
         $non_array_inputs = array('string', 123, null, false, true);
 
@@ -161,7 +161,7 @@ class SearchSettingsTest extends TestCase {
      * Test sanitize_attributes sanitizes individual attribute names.
      */
     public function test_sanitize_attributes_sanitizes_names() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
         $input = array('pa_color', 'pa_size<script>', 'pa_material<style>');
 
         $result = $settings->sanitize_attributes($input);
@@ -175,7 +175,7 @@ class SearchSettingsTest extends TestCase {
      * Test sanitize_attributes filters empty values.
      */
     public function test_sanitize_attributes_filters_empty_values() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
         $input = array('pa_color', '', 'pa_size', null, '0', 'pa_material');
 
         $result = $settings->sanitize_attributes($input);
@@ -192,7 +192,7 @@ class SearchSettingsTest extends TestCase {
      * Test sanitize_synonyms returns sanitized string.
      */
     public function test_sanitize_synonyms_returns_sanitized_string() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
         $input = "car, vehicle, auto\nlaptop, notebook, computer";
 
         $result = $settings->sanitize_synonyms($input);
@@ -205,7 +205,7 @@ class SearchSettingsTest extends TestCase {
      * Test sanitize_synonyms handles HTML tags.
      */
     public function test_sanitize_synonyms_handles_html() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
         $input = "car, <script>alert('xss')</script>vehicle, auto";
 
         $result = $settings->sanitize_synonyms($input);
@@ -228,7 +228,7 @@ class SearchSettingsTest extends TestCase {
      * Test init method exists and is callable.
      */
     public function test_init_method_exists() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
 
         $this->assertTrue(method_exists($settings, 'init'), 'Settings class should have init method');
         $this->assertTrue(is_callable(array($settings, 'init')), 'init method should be callable');
@@ -238,7 +238,7 @@ class SearchSettingsTest extends TestCase {
      * Test register_settings method exists and is callable.
      */
     public function test_register_settings_method_exists() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
 
         $this->assertTrue(method_exists($settings, 'register_settings'), 'Settings class should have register_settings method');
         $this->assertTrue(is_callable(array($settings, 'register_settings')), 'register_settings method should be callable');
@@ -248,7 +248,7 @@ class SearchSettingsTest extends TestCase {
      * Test add_settings_page method exists and is callable.
      */
     public function test_add_settings_page_method_exists() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
 
         $this->assertTrue(method_exists($settings, 'add_settings_page'), 'Settings class should have add_settings_page method');
         $this->assertTrue(is_callable(array($settings, 'add_settings_page')), 'add_settings_page method should be callable');
@@ -258,7 +258,7 @@ class SearchSettingsTest extends TestCase {
      * Test render_settings_page method exists and is callable.
      */
     public function test_render_settings_page_method_exists() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
 
         $this->assertTrue(method_exists($settings, 'render_settings_page'), 'Settings class should have render_settings_page method');
         $this->assertTrue(is_callable(array($settings, 'render_settings_page')), 'render_settings_page method should be callable');
@@ -268,7 +268,7 @@ class SearchSettingsTest extends TestCase {
      * Test sanitize_checkbox with edge case values.
      */
     public function test_sanitize_checkbox_edge_cases() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
 
         // Test with string '1' (expected truthy)
         $result1 = $settings->sanitize_checkbox('1');
@@ -291,7 +291,7 @@ class SearchSettingsTest extends TestCase {
      * Test selected attributes with single attribute.
      */
     public function test_selected_attributes_with_single_attribute() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
         $single_attribute = array('pa_color');
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_selected_attributes', $single_attribute);
@@ -306,7 +306,7 @@ class SearchSettingsTest extends TestCase {
      * Test selected attributes with many attributes.
      */
     public function test_selected_attributes_with_many_attributes() {
-        $settings = new \TRB_Product_Search\Settings();
+        $settings = \TRB_Product_Search\Settings::get_instance();
         $many_attributes = array('pa_color', 'pa_size', 'pa_material', 'pa_brand', 'pa_style');
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_selected_attributes', $many_attributes);

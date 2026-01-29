@@ -124,7 +124,7 @@ class SearchQueryTest extends TestCase {
         $wp_query = new \WP_Query();
         $sql = $query_handler->synonym_search_filter('original_sql', $wp_query);
 
-        $this->assertEquals('', $sql, 'Filter should return empty string for no terms');
+        $this->assertEquals('original_sql', $sql, 'Filter should return original SQL for no terms');
     }
 
     /**

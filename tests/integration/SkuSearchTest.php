@@ -25,7 +25,7 @@ class SkuSearchTest extends TestCase {
      * Test is_enabled returns false by default.
      */
     public function test_is_enabled_returns_false_by_default() {
-        $sku_search = new \TRB_Product_Search\SKU_Search();
+        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '0');
 
@@ -38,7 +38,7 @@ class SkuSearchTest extends TestCase {
      * Test is_enabled returns true when enabled.
      */
     public function test_is_enabled_returns_true_when_enabled() {
-        $sku_search = new \TRB_Product_Search\SKU_Search();
+        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
 
@@ -51,7 +51,7 @@ class SkuSearchTest extends TestCase {
      * Test build_meta_query returns null when disabled.
      */
     public function test_build_meta_query_returns_null_when_disabled() {
-        $sku_search = new \TRB_Product_Search\SKU_Search();
+        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '0');
 
@@ -64,7 +64,7 @@ class SkuSearchTest extends TestCase {
      * Test build_meta_query returns array when enabled.
      */
     public function test_build_meta_query_returns_array_when_enabled() {
-        $sku_search = new \TRB_Product_Search\SKU_Search();
+        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
 
@@ -78,7 +78,7 @@ class SkuSearchTest extends TestCase {
      * Test build_meta_query contains correct query structure.
      */
     public function test_build_meta_query_contains_correct_structure() {
-        $sku_search = new \TRB_Product_Search\SKU_Search();
+        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
         $search_term = 'WIRELESS-HEADPHONES';
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
@@ -96,7 +96,7 @@ class SkuSearchTest extends TestCase {
      * Test get_exact_sku_match returns null when disabled.
      */
     public function test_get_exact_sku_match_returns_null_when_disabled() {
-        $sku_search = new \TRB_Product_Search\SKU_Search();
+        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '0');
 
@@ -112,7 +112,7 @@ class SkuSearchTest extends TestCase {
      * In a real WordPress environment with products, it would return the actual product ID.
      */
     public function test_get_exact_sku_match_returns_product_id_when_found() {
-        $sku_search = new \TRB_Product_Search\SKU_Search();
+        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
 
@@ -122,14 +122,14 @@ class SkuSearchTest extends TestCase {
 
         // In test environment without actual products, this will return null
         // The test verifies the method can be called without errors
-        $this->assertIsInt($result) || $this->assertNull($result, 'Should return int or null');
+        $this->assertTrue(is_int($result) || is_null($result), 'Should return int or null');
     }
 
     /**
      * Test get_exact_sku_match returns null when not found.
      */
     public function test_get_exact_sku_match_returns_null_when_not_found() {
-        $sku_search = new \TRB_Product_Search\SKU_Search();
+        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
 
@@ -152,7 +152,7 @@ class SkuSearchTest extends TestCase {
      * Test build_meta_query with different search terms.
      */
     public function test_build_meta_query_with_different_terms() {
-        $sku_search = new \TRB_Product_Search\SKU_Search();
+        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
 
@@ -170,7 +170,7 @@ class SkuSearchTest extends TestCase {
      * Test build_meta_query handles special characters.
      */
     public function test_build_meta_query_handles_special_characters() {
-        $sku_search = new \TRB_Product_Search\SKU_Search();
+        $sku_search = \TRB_Product_Search\SKU_Search::get_instance();
 
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
 

@@ -125,7 +125,7 @@ class Settings
      */
     public function sanitize_checkbox($input)
     {
-        return '1' === $input ? '1' : '0';
+        return '1' === $input || 1 === $input || true === $input || 'true' === $input ? '1' : '0';
     }
 
     /**
