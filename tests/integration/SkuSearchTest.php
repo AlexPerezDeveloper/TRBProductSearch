@@ -70,21 +70,15 @@ class SkuSearchTest extends TestCase {
 
         // Mock global wpdb
         global $wpdb;
-        // Mock get_col to return some post IDs from postmeta
+        // Mock get_col to return product IDs directly from the optimized CASE query
         $wpdb->mock_results['get_col'] = array(10, 20);
-        
-        // Mock get_results to return post objects for those IDs
-        $wpdb->mock_results['get_results'] = array(
-            (object) array('ID' => 10, 'post_type' => 'product', 'post_parent' => 0),
-            (object) array('ID' => 20, 'post_type' => 'product', 'post_parent' => 0)
-        );
 
         $result = $sku_search->get_matching_product_ids('TEST-SKU');
 
         $this->assertIsArray($result);
         $this->assertContains(10, $result);
         $this->assertContains(20, $result);
-        
+
         // Clean up mock
         unset($wpdb->mock_results);
     }
@@ -97,20 +91,16 @@ class SkuSearchTest extends TestCase {
         TRB_Product_Search_Tests_Setup::set_option('trb_search_sku_enabled', '1');
 
         global $wpdb;
-        // Mock get_col to return a variation ID
-        $wpdb->mock_results['get_col'] = array(15);
-        
-        // Mock get_results to return the variation post object with parent
-        $wpdb->mock_results['get_results'] = array(
-            (object) array('ID' => 15, 'post_type' => 'product_variation', 'post_parent' => 5)
-        );
+        // Mock get_col to return parent ID directly from the optimized CASE query
+        // The CASE statement resolves variations to their parent ID in SQL
+        $wpdb->mock_results['get_col'] = array(5);
 
         $result = $sku_search->get_matching_product_ids('VAR-SKU');
 
         $this->assertIsArray($result);
         $this->assertContains(5, $result, 'Should return parent ID for variation match');
         $this->assertNotContains(15, $result, 'Should not return variation ID');
-        
+
         unset($wpdb->mock_results);
     }
 
