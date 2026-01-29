@@ -116,7 +116,7 @@ class Search_Query
     }
 
     /**
-     * Modify the search SQL to include synonyms (OR logic) and better partial matching.
+     * Modify the search SQL to include synonyms and better partial matching.
      *
      * @param string   $search   The generated search SQL.
      * @param \WP_Query $wp_query The WP_Query instance.
@@ -130,27 +130,19 @@ class Search_Query
             return $search;
         }
 
-        $search = '';
-        $wildcard = '%'; // Always use wildcard for partial matching
+        $wildcard = '%';
 
-        $search .= " AND (";
-
-        $first = true;
+        // Build OR conditions for all search terms (synonyms)
+        $conditions = array();
         foreach ($this->current_search_terms as $t) {
             $term = esc_sql($wpdb->esc_like($t));
-
-            if (!$first) {
-                $search .= " OR ";
-            }
-
-            // Search for titles starting with the term (higher priority)
-            // or containing the term anywhere (lower priority)
-            $search .= "({$wpdb->posts}.post_title LIKE '{$term}{$wildcard}') OR ({$wpdb->posts}.post_title LIKE '{$wildcard}{$term}{$wildcard}')";
-
-            $first = false;
+            // Search in title and content for partial matches
+            $conditions[] = "({$wpdb->posts}.post_title LIKE '{$wildcard}{$term}{$wildcard}')";
+            $conditions[] = "({$wpdb->posts}.post_content LIKE '{$wildcard}{$term}{$wildcard}')";
         }
 
-        $search .= ")";
+        // Combine with OR - any term match is good enough
+        $search = ' AND (' . implode(' OR ', $conditions) . ')';
 
         return $search;
     }
