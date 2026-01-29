@@ -97,10 +97,17 @@ El objetivo es permitir a los usuarios finales encontrar productos de forma ráp
    * Shortcode para insertar el buscador en cualquier página o widget.
    * Ejemplo: `[trb_product_search]`
 
-8. **Compatibilidad WooCommerce**
+88. **Compatibilidad WooCommerce**
 
    * Uso de `WP_Query` o `WC_Product_Query`.
    * Respeto al estado del producto (publicado, visible en catálogo).
+
+9. **Gestión de Caché Centralizada**
+
+   * **[IMPLEMENTADO]** Sistema de caché híbrido (Object Cache + Transients fallback).
+   * Persistencia de resultados para búsquedas frecuentes.
+   * Invalidación automática inteligente (versionado) al guardar/importar productos.
+   * Debugging integrado en logs para hits/misses.
 
 ---
 
@@ -112,8 +119,8 @@ El objetivo es permitir a los usuarios finales encontrar productos de forma ráp
 2. Registro y validación de dependencias (WooCommerce activo)
 3. Registro de shortcodes
 4. Renderizado del formulario de búsqueda
-5. Procesamiento de la búsqueda
-6. Renderizado de resultados
+5. Procesamiento de la búsqueda (con capa de caché)
+6. Renderizado de resultados (con medición de tiempos en JS)
 7. Estilos básicos
 8. Pruebas funcionales
 
@@ -124,7 +131,11 @@ El objetivo es permitir a los usuarios finales encontrar productos de forma ráp
 1. El usuario accede a una página con el buscador.
 2. Introduce texto en el campo de búsqueda.
 3. Si supera los 3 caracteres, se lanza una petición AJAX.
+   * **Frontend:** Se mide tiempo de red y renderizado.
+   * **Backend:** Se verifica caché antes de SQL.
+   * **Backend:** Si falla búsqueda exacta, se intenta corrección tipográfica (índice v2).
 4. Se muestran los resultados en un desplegable.
+   * Si es resultado de corrección, muestra mensaje "No results for X. Showing results for Y".
 5. El usuario hace clic en un producto y accede a su ficha.
 6. Alternativamente, envía el formulario para ver resultados en página completa.
 
@@ -151,9 +162,10 @@ trb-product-search/
 │   ├── class-search-results.php   # Renderizado de resultados
 │   ├── class-ajax-handler.php     # Manejo de peticiones AJAX
 │   ├── class-settings.php         # Configuración del plugin
-│   ├── class-typo-corrector.php   # Corrección de errores tipográficos
+│   ├── class-typo-corrector.php   # Corrección de errores tipográficos (v2)
 │   ├── class-sku-search.php       # Búsqueda por SKU
-│   └── class-attributes-search.php # Búsqueda por atributos
+│   ├── class-attributes-search.php # Búsqueda por atributos
+│   └── class-cache-manager.php    # Gestión centralizada de caché
 ├── templates/
 │   └── results.php                # Plantilla de resultados
 └── tests/
@@ -179,7 +191,7 @@ trb-product-search/
 
 * Renderizado HTML del formulario.
 * Uso de `GET` para facilitar indexación.
-* Nonce básico para seguridad.
+* Nonce básico para seguridad (con manejo de sesión expirada).
 
 #### 6.2.3 Motor de búsqueda (Search_Query)
 
@@ -189,7 +201,7 @@ trb-product-search/
   * **Atributos** (opcional, vía tax_query)
 * Soporte para sinónimos con lógica OR.
 * Priorización de resultados (SKU exacto > título > atributos).
-* Soporte para paginación básica.
+* **[NUEVO] integración con Cache_Manager para evitar queries repetidas.**
 
 #### 6.2.4 Búsqueda por SKU (SKU_Search)
 
@@ -205,12 +217,13 @@ trb-product-search/
 * Selección de atributos específicos para buscar.
 * Integración con tax_query de WP_Query.
 
-#### 6.2.6 Corrección de errores tipográficos (Typo_Corrector)
+#### 6.2.6 Corrección de errores tipográficos (Typo_Corrector v2)
 
 * Indexación automática de palabras de productos.
 * Indexación de títulos, SKUs y atributos.
-* Algoritmo de distancia de Levenshtein para sugerencias.
-* Reconstrucción de índice al guardar productos.
+* **Estructura optimizada de índice**: Basada en longitud de palabra e inicial (O(1) lookup).
+* **Construcción Asíncrona**: Uso de Action Scheduler para no bloquear el guardado.
+* Algoritmo de distancia de Levenshtein optimizado.
 
 #### 6.2.7 Configuración (Settings)
 
@@ -220,10 +233,12 @@ trb-product-search/
 * Habilitar/deshabilitar búsqueda por atributos.
 * Selección de atributos específicos.
 
-#### 6.2.8 Resultados
+#### 6.2.8 Gestión de Caché (Cache_Manager)
 
-* Plantilla desacoplada.
-* Posibilidad de override por el theme (futuro).
+* Clase centralizada para `wp_cache_*`.
+* Fallback a Transients si no hay Object Cache persistente.
+* Versionado de caché para invalidación global sin purgar todo el sitio.
+* Logs de depuración para análisis de rendimiento.
 
 ---
 
@@ -233,10 +248,8 @@ trb-product-search/
 * `render_search_form()`
 * `handle_search_request()`
 * `get_products_by_search()`
-* `render_search_form()`
-* `handle_search_request()`
-* `get_products_by_search()`
 * `render_results()`
+* `Cache_Manager::get()` / `set()`
 
 ---
 
@@ -244,16 +257,17 @@ trb-product-search/
 
 * Escape de inputs (`sanitize_text_field`).
 * Escape de outputs (`esc_html`, `esc_url`).
-* Nonce para formularios.
+* Nonce para formularios (retorno JSON amigable si expira).
 * Validación de parámetros.
 
 ---
 
 ## 9. Rendimiento
 
-* Consultas optimizadas.
+* Consultas optimizadas con Caché inteligente.
+* Índice de typos optimizado para evitar latencia en corrección.
 * Límite de resultados por página.
-* Sin cargas innecesarias de JS/CSS si el shortcode no está presente.
+* Métricas de tiempo de red y pintado en consola del navegador.
 
 ---
 
@@ -262,6 +276,7 @@ trb-product-search/
 * Diseño limpio y minimalista.
 * Sin dependencia de frameworks externos.
 * Estilos fácilmente sobrescribibles.
+* Feedback visual de "Cargando" y métricas de velocidad (consola).
 
 ---
 
@@ -278,7 +293,15 @@ trb-product-search/
 
 ## 12. Extensibilidad Futura (Roadmap)
 
-### v1.1 - Implementado (Issue #5)
+### v1.2 - Implementado (Actual)
+
+*   **[COMPLETADO]** Gestión centralizada de caché (Cache_Manager).
+*   **[COMPLETADO]** Soporte de caché persistente con Transients.
+*   **[COMPLETADO]** Optimización de Typo Corrector (Índice v2 + Async Build).
+*   **[COMPLETADO]** Métricas de rendimiento en frontend.
+*   **[COMPLETADO]** Manejo de expiración de sesión (Nonce).
+
+### v1.1 - Implementado
 
 *   **[COMPLETADO]** Búsqueda por SKU configurable.
 *   **[COMPLETADO]** Búsqueda por atributos de producto.
@@ -293,16 +316,15 @@ trb-product-search/
 *   **[COMPLETADO]** Corrección básica de errores tipográficos.
 *   **[COMPLETADO]** Debounce en inputs (500ms).
 
-### Próximas versiones (v1.2+)
+### Próximas versiones (v1.3+)
 
 1.  **Skeleton loaders**: Mejorar la experiencia visual mientras cargan los resultados.
-2.  **Caché de resultados**: Almacenar búsquedas frecuentes para mejorar velocidad.
+2.  **Analytics Avanzado**: Dashboard de términos buscados y "Sin resultados".
 3.  **Lazy loading de imágenes**: Carga diferida de imágenes en resultados.
-4.  **Búsqueda en variaciones**: Extender búsqueda a variaciones de producto.
-5.  **Analytics**: Tracking de búsquedas realizadas (sin datos personales).
-6.  **Resultados destacados**: Posibilidad de fijar productos en resultados.
-7.  **Historial de búsquedas**: Mostrar búsquedas recientes al usuario.
-8.  **Filtros por precio**: Rango de precios en búsqueda.
+4.  **Búsqueda en variaciones**: Extender búsqueda a variaciones de producto profundas.
+5.  **Resultados destacados**: Posibilidad de fijar productos en resultados.
+6.  **Historial de búsquedas**: Mostrar búsquedas recientes al usuario.
+7.  **Filtros por precio**: Rango de precios en búsqueda.
 
 ---
 

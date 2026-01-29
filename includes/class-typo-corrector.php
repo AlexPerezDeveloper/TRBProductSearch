@@ -16,7 +16,7 @@ class Typo_Corrector
     /**
      * Option name for the word index.
      */
-    const OPTION_NAME = 'trb_search_word_index';
+    const OPTION_NAME = 'trb_search_word_index_v2';
 
     /**
      * Instance of the class.
@@ -54,7 +54,25 @@ class Typo_Corrector
         // Rebuild index when a product is saved
         add_action('save_post_product', array($this, 'background_build_index'));
 
-        // Add a setting to rebuild manually could be useful, but for now we rely on save_post or first run.
+        // Hook for the background action
+        add_action('trb_rebuild_search_index', array($this, 'build_index'));
+    }
+
+    /**
+     * Trigger index build asynchronously if possible.
+     *
+     * @param int|null $post_id Post ID (optional, passed by save_post hook).
+     */
+    public function background_build_index($post_id = null)
+    {
+        if (function_exists('as_schedule_single_action')) {
+            // Check if there's already a pending action to avoid duplicates
+            if (!as_next_scheduled_action('trb_rebuild_search_index')) {
+                as_schedule_single_action(time() + 60, 'trb_rebuild_search_index', [], 'TRB_Search');
+            }
+        } else {
+            $this->build_index(); // Fallback to synchronous execution
+        }
     }
 
     /**
@@ -66,143 +84,99 @@ class Typo_Corrector
     {
         global $wpdb;
 
-        // Check if WooCommerce is active
-        if (!function_exists('wc_get_products')) {
-            // Fallback to title-only indexing if WooCommerce is not available
-            return $this->build_title_index($wpdb);
-        }
-
         $words = array();
         $stop_words = $this->get_stop_words();
 
-        // Step 1: Index product titles (using direct DB query for performance)
+        // Step 1: Index product titles
         $titles = $wpdb->get_col("SELECT post_title FROM {$wpdb->posts} WHERE post_type = 'product' AND post_status = 'publish'");
 
         if ($titles) {
             foreach ($titles as $title) {
-                // Tokenize: remove punctuation, lowercase, split by space
-                $clean_title = mb_strtolower($title);
-                $clean_title = preg_replace('/[^\p{L}\p{N}\s]/u', '', $clean_title); // Keep letters, numbers, spaces
-                $tokens = explode(' ', $clean_title);
-
-                foreach ($tokens as $token) {
-                    $token = trim($token);
-                    if (!empty($token) && strlen($token) > 2 && !in_array($token, $stop_words)) {
-                        $words[$token] = true; // Use keys for uniqueness
-                    }
-                }
+                $this->tokenize_and_add($title, $words, $stop_words);
             }
         }
 
-        // Step 2: Index product SKUs
+        // Step 2: Index SKUs
         $skus = $wpdb->get_col("SELECT DISTINCT meta_value FROM {$wpdb->postmeta} WHERE meta_key = '_sku' AND meta_value != ''");
 
         if ($skus) {
             foreach ($skus as $sku) {
+                // Add the full SKU as a word
                 $clean_sku = mb_strtolower(trim($sku));
-                $clean_sku = preg_replace('/[^\p{L}\p{N}\s]/u', '', $clean_sku);
-
-                // Tokenize SKU in case it contains multiple parts (e.g., "PROD-123-BLACK")
-                $tokens = explode(' ', preg_replace('/[^\p{L}\p{N}]/u', ' ', $clean_sku));
-
-                foreach ($tokens as $token) {
-                    $token = trim($token);
-                    if (!empty($token) && strlen($token) > 2 && !in_array($token, $stop_words)) {
-                        $words[$token] = true;
-                    }
-                }
-
-                // Also add the complete SKU as a single token if it's meaningful
-                if (!empty($clean_sku) && strlen($clean_sku) > 2) {
+                if (strlen($clean_sku) > 2) {
                     $words[$clean_sku] = true;
                 }
+                // Tokenize parts of the SKU
+                $this->tokenize_and_add($sku, $words, $stop_words);
             }
         }
 
-        // Step 3: Index product attribute terms
-        // Get all product attribute taxonomies
-        $attribute_taxonomies = $wpdb->get_col(
-            "SELECT DISTINCT taxonomy
-            FROM {$wpdb->term_taxonomy}
-            WHERE taxonomy LIKE 'pa_%'"
-        );
+        // Step 3: Index Attributes
+        // Check if WooCommerce tables exist (safety check)
+        if ($wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}woocommerce_attribute_taxonomies'") === $wpdb->prefix . 'woocommerce_attribute_taxonomies') {
+            $attribute_taxonomies = $wpdb->get_col("SELECT taxonomy FROM {$wpdb->term_taxonomy} WHERE taxonomy LIKE 'pa_%'");
 
-        if ($attribute_taxonomies) {
-            $placeholders = implode(',', array_fill(0, count($attribute_taxonomies), '%s'));
-            $query = $wpdb->prepare(
-                "SELECT DISTINCT t.name
-                FROM {$wpdb->terms} t
-                INNER JOIN {$wpdb->term_taxonomy} tt ON t.term_id = tt.term_id
-                WHERE tt.taxonomy IN ($placeholders)",
-                $attribute_taxonomies
-            );
+            if ($attribute_taxonomies) {
+                $placeholders = implode(',', array_fill(0, count($attribute_taxonomies), '%s'));
+                $query = $wpdb->prepare(
+                    "SELECT DISTINCT t.name
+                    FROM {$wpdb->terms} t
+                    INNER JOIN {$wpdb->term_taxonomy} tt ON t.term_id = tt.term_id
+                    WHERE tt.taxonomy IN ($placeholders)",
+                    $attribute_taxonomies
+                );
 
-            $attribute_terms = $wpdb->get_col($query);
+                $attribute_terms = $wpdb->get_col($query);
 
-            if ($attribute_terms) {
-                foreach ($attribute_terms as $term) {
-                    $clean_term = mb_strtolower(trim($term));
-                    $clean_term = preg_replace('/[^\p{L}\p{N}\s]/u', '', $clean_term);
-                    $tokens = explode(' ', $clean_term);
-
-                    foreach ($tokens as $token) {
-                        $token = trim($token);
-                        if (!empty($token) && strlen($token) > 2 && !in_array($token, $stop_words)) {
-                            $words[$token] = true;
-                        }
+                if ($attribute_terms) {
+                    foreach ($attribute_terms as $term) {
+                        $this->tokenize_and_add($term, $words, $stop_words);
                     }
                 }
             }
         }
 
-        $unique_words = array_keys($words);
-        update_option(self::OPTION_NAME, $unique_words, 'no'); // 'no' autoload if large? Maybe user setting. For now default.
+        // Build the optimized structure
+        $optimized_index = array();
+        foreach (array_keys($words) as $word) {
+            $len = mb_strlen($word);
+            $first_char = mb_substr($word, 0, 1);
 
-        return $unique_words;
+            if (!isset($optimized_index[$len])) {
+                $optimized_index[$len] = array();
+            }
+            if (!isset($optimized_index[$len][$first_char])) {
+                $optimized_index[$len][$first_char] = array();
+            }
+
+            $optimized_index[$len][$first_char][] = $word;
+        }
+
+        update_option(self::OPTION_NAME, $optimized_index, 'no');
+
+        return $optimized_index;
     }
 
     /**
-     * Build title-only index (fallback when WooCommerce is not active).
+     * Helper to tokenize a string and add valid words to the list.
      *
-     * @param wpdb $wpdb Database object.
-     * @return array The built index.
+     * @param string $text Text to tokenize.
+     * @param array $words Reference to the words array.
+     * @param array $stop_words Stop words list.
      */
-    private function build_title_index($wpdb)
+    private function tokenize_and_add($text, &$words, $stop_words)
     {
-        $titles = $wpdb->get_col("SELECT post_title FROM {$wpdb->posts} WHERE post_type = 'product' AND post_status = 'publish'");
+        $clean_text = mb_strtolower($text);
+        // Replace non-alphanumeric characters with spaces
+        $clean_text = preg_replace('/[^\p{L}\p{N}\s]/u', ' ', $clean_text);
+        $tokens = explode(' ', $clean_text);
 
-        $words = array();
-        $stop_words = $this->get_stop_words();
-
-        if ($titles) {
-            foreach ($titles as $title) {
-                // Tokenize: remove punctuation, lowercase, split by space
-                $clean_title = mb_strtolower($title);
-                $clean_title = preg_replace('/[^\p{L}\p{N}\s]/u', '', $clean_title); // Keep letters, numbers, spaces
-                $tokens = explode(' ', $clean_title);
-
-                foreach ($tokens as $token) {
-                    $token = trim($token);
-                    if (!empty($token) && strlen($token) > 2 && !in_array($token, $stop_words)) {
-                        $words[$token] = true; // Use keys for uniqueness
-                    }
-                }
+        foreach ($tokens as $token) {
+            $token = trim($token);
+            if (!empty($token) && mb_strlen($token) > 2 && !in_array($token, $stop_words)) {
+                $words[$token] = true;
             }
         }
-
-        $unique_words = array_keys($words);
-        update_option(self::OPTION_NAME, $unique_words, 'no');
-
-        return $unique_words;
-    }
-
-    /**
-     * Trigger index build (could be improved to be async).
-     */
-    public function background_build_index()
-    {
-        // For V1 simple direct call. In future, use Action Scheduler.
-        $this->build_index();
     }
 
     /**
@@ -212,7 +186,6 @@ class Typo_Corrector
      */
     private function get_stop_words()
     {
-        // Basic list for Spanish/English. Could be extensible.
         return array(
             'de',
             'la',
@@ -247,118 +220,153 @@ class Typo_Corrector
     }
 
     /**
-     * Attempt to correct a typo in the search term.
+     * Attempt to correct a typo in the search term using the optimized index.
      *
      * @param string $term The search term.
-     * @return string|false The corrected term or false if no good match.
+     * @return string|false The corrected term or false.
      */
     public function correct($term)
     {
-        $words = get_option(self::OPTION_NAME);
+        $index = get_option(self::OPTION_NAME);
 
-        // If index doesn't exist, try to build it once
-        if ($words === false) {
-            $words = $this->build_index();
+        // Build if missing
+        if ($index === false) {
+            $index = $this->build_index();
         }
 
-        if (empty($words)) {
+        if (empty($index)) {
             return false;
         }
 
         $term = mb_strtolower(trim($term));
-        $normalized_term = function_exists('remove_accents') ? remove_accents($term) : $term;
-        
-        $best_match = false;
-        $shortest_distance = -1;
+        $input_tokens = explode(' ', $term);
 
-        // Simple Levenshtein on each indexed word
-        foreach ($words as $word) {
-            $normalized_word = function_exists('remove_accents') ? remove_accents($word) : $word;
-            
-            $distance = levenshtein($normalized_term, $normalized_word);
+        // If it's a single word
+        if (count($input_tokens) === 1) {
+            return $this->find_best_match($term, $index);
+        }
 
-            // Exact match (distance 0) means no typo
-            if ($distance === 0) {
-                // If the term matches normalized word, but actual word has accents, maybe return actual word?
-                // e.g. input "atletico" matches normalized "atletico" from "atlético".
-                // We should suggest "atlético".
-                if ($term !== $word) {
-                     return $word;
-                }
-                return false; 
+        // Multi-word phrase correction
+        $corrected_tokens = array();
+        $has_correction = false;
+
+        foreach ($input_tokens as $token) {
+            if (mb_strlen($token) < 3) {
+                $corrected_tokens[] = $token;
+                continue;
             }
 
-            // Only consider matches that are reasonably close AND
-            // prefer words that start with the same letter for better suggestions
-            $distance_penalty = 0;
-            if (mb_substr($normalized_term, 0, 1) !== mb_substr($normalized_word, 0, 1)) {
-                $distance_penalty = 2; // Penalize words starting with different letter
+            // check if word exists exactly (we need to flatten or search smart)
+            // Ideally we check specific bucket
+            if ($this->word_exists($token, $index)) {
+                $corrected_tokens[] = $token;
+                continue;
             }
 
-            $effective_distance = $distance + $distance_penalty;
-
-            if ($effective_distance <= 3) { // Slightly higher threshold with penalty
-                if ($shortest_distance < 0 || $effective_distance < $shortest_distance) {
-                    $shortest_distance = $effective_distance;
-                    $best_match = $word;
-                }
+            $match = $this->find_best_match($token, $index);
+            if ($match) {
+                $corrected_tokens[] = $match;
+                $has_correction = true;
+            } else {
+                $corrected_tokens[] = $token;
             }
         }
 
-        // Improved V1 Logic: Tokenize input, correct individual words.
-        $input_tokens = explode(' ', $term);
-        // Only try token correction if it's a multi-word phrase
-        if (count($input_tokens) > 1) {
-            $corrected_tokens = array();
-            $has_correction = false;
+        if ($has_correction) {
+            return implode(' ', $corrected_tokens);
+        }
 
-            foreach ($input_tokens as $token) {
-                if (strlen($token) < 4) {
-                    $corrected_tokens[] = $token;
-                    continue;
-                }
+        return false;
+    }
 
-                // Check if token exists
-                if (in_array($token, $words)) {
-                    $corrected_tokens[] = $token;
-                    continue;
-                }
+    /**
+     * Check if a word exists in the index.
+     * 
+     * @param string $word
+     * @param array $index
+     * @return bool
+     */
+    private function word_exists($word, $index)
+    {
+        $len = mb_strlen($word);
+        $first_char = mb_substr($word, 0, 1);
 
-                $normalized_token = function_exists('remove_accents') ? remove_accents($token) : $token;
-                
-                // Find best match for token
-                $token_best_match = $token;
-                $token_shortest_distance = -1;
+        if (isset($index[$len][$first_char])) {
+            return in_array($word, $index[$len][$first_char]);
+        }
+        return false;
+    }
 
-                foreach ($words as $word) {
-                    $normalized_word = function_exists('remove_accents') ? remove_accents($word) : $word;
-                    $dist = levenshtein($normalized_token, $normalized_word);
+    /**
+     * Find best match for a single word using optimized index.
+     * 
+     * @param string $word
+     * @param array $index
+     * @return string|false
+     */
+    private function find_best_match($word, $index)
+    {
+        $len = mb_strlen($word);
+        $first_char = mb_substr($word, 0, 1);
 
-                    $dist_penalty = 0;
-                    if (mb_substr($normalized_token, 0, 1) !== mb_substr($normalized_word, 0, 1)) {
-                        $dist_penalty = 2;
+        // Search mainly in same length, and length +/- 1
+        $lengths_to_check = array($len, $len - 1, $len + 1);
+
+        $candidates = array();
+
+        foreach ($lengths_to_check as $l) {
+            if (isset($index[$l])) {
+                // If we have candidates with same first char, prioritize them? 
+                // Currently we just gather all candidates from standard logic.
+                // To be safe and fast, let's grab all words from these lengths.
+                // Optimization: Filter by first letter? 
+                // If I mistyped the first letter, filtering by it forces a miss.
+                // But usually first letter is correct. 
+                // Let's grab matching first letter buckets + maybe some adjacent keys if we want to be super thorough,
+                // but for 80-90% speedup we should probably restrict search space significantly.
+                // Proposal: check SAME first letter for all lengths.
+
+                if (isset($index[$l][$first_char])) {
+                    foreach ($index[$l][$first_char] as $candidate) {
+                        $candidates[] = $candidate;
                     }
-
-                    $effective_dist = $dist + $dist_penalty;
-
-                    if ($effective_dist <= 3) {
-                        if ($token_shortest_distance < 0 || $effective_dist < $token_shortest_distance) {
-                            $token_shortest_distance = $effective_dist;
-                            $token_best_match = $word;
-                        }
-                    }
                 }
 
-                if ($token_best_match !== $token) {
-                    $has_correction = true;
-                    $corrected_tokens[] = $token_best_match;
-                } else {
-                    $corrected_tokens[] = $token;
-                }
+                // Perhaps check other first letters if no candidates found? 
+                // Or maybe checking ALL keys in these lengths is still O(m) where m << n
+            }
+        }
+
+        // If strict first-char matching yields nothing or we want to be more robust:
+        // For now, let's stick to the prompt implication: "Filtrar por primera letra para reducir espacio de búsqueda"
+
+        if (empty($candidates)) {
+            // Fallback: search all words in the length range if strict first-char failed?
+            // Or just return false to keep it fast. 
+            // Let's look at neighboring keys if empty.
+            // But the prompt says "Filtrar por primera letra". I will trust that constraint for speed.
+            return false;
+        }
+
+        $best_match = false;
+        $shortest_distance = -1;
+
+        $normalized_word = function_exists('remove_accents') ? remove_accents($word) : $word;
+
+        foreach ($candidates as $candidate) {
+            $normalized_candidate = function_exists('remove_accents') ? remove_accents($candidate) : $candidate;
+
+            $distance = levenshtein($normalized_word, $normalized_candidate);
+
+            if ($distance === 0) {
+                return $candidate; // Exact match found (should be caught by word_exists but good safety)
             }
 
-            if ($has_correction) {
-                return implode(' ', $corrected_tokens);
+            if ($distance <= 2) { // strict threshold
+                if ($shortest_distance < 0 || $distance < $shortest_distance) {
+                    $shortest_distance = $distance;
+                    $best_match = $candidate;
+                }
             }
         }
 
