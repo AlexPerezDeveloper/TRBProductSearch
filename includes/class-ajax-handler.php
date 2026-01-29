@@ -73,12 +73,12 @@ class Ajax_Handler
         if (!$query->have_posts()) {
             // Only use typo correction for longer terms that look like actual typos
             // (not for short partial searches like "cami")
-            if (strlen($term) >= 5) {
+            if (strlen($term) >= 4) {
                 $corrector = \TRB_Product_Search\Typo_Corrector::get_instance();
                 $suggestion = $corrector->correct($term);
 
-                if ($suggestion && levenshtein($term, $suggestion) <= 2) {
-                    // Perform search with suggestion only if it's reasonably close
+                if ($suggestion) {
+                    // Perform search with suggestion
                     $query = $query_handler->search($suggestion);
                     $is_correction = true;
                 } else {

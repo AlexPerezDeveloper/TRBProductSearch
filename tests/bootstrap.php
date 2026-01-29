@@ -287,6 +287,23 @@ if (!function_exists('check_ajax_referer')) {
     }
 }
 
+if (!function_exists('remove_accents')) {
+    function remove_accents($str) {
+        if (!preg_match('/[\x80-\xff]/', $str)) {
+            return $str;
+        }
+        // Simple mapping for common accents
+        $chars = array(
+            'á'=>'a', 'é'=>'e', 'í'=>'i', 'ó'=>'o', 'ú'=>'u',
+            'Á'=>'A', 'É'=>'E', 'Í'=>'I', 'Ó'=>'O', 'Ú'=>'U',
+            'ñ'=>'n', 'Ñ'=>'N',
+            'à'=>'a', 'è'=>'e', 'ì'=>'i', 'ò'=>'o', 'ù'=>'u',
+            'ä'=>'a', 'ë'=>'e', 'ï'=>'i', 'ö'=>'o', 'ü'=>'u',
+        );
+        return strtr($str, $chars);
+    }
+}
+
 // Mock WooCommerce
 if (!class_exists('WooCommerce')) {
     class WooCommerce {

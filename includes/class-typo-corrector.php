@@ -266,25 +266,32 @@ class Typo_Corrector
         }
 
         $term = mb_strtolower(trim($term));
+        $normalized_term = function_exists('remove_accents') ? remove_accents($term) : $term;
+        
         $best_match = false;
         $shortest_distance = -1;
 
         // Simple Levenshtein on each indexed word
         foreach ($words as $word) {
-            $distance = levenshtein($term, $word);
+            $normalized_word = function_exists('remove_accents') ? remove_accents($word) : $word;
+            
+            $distance = levenshtein($normalized_term, $normalized_word);
 
-            // Exact match (distance 0) means no typo, but maybe user searched a substring?
-            // If the term is present, search should have found it.
-            // We assume correct() is called when NO results found.
-
+            // Exact match (distance 0) means no typo
             if ($distance === 0) {
-                return false; // It matches a real word, so not a typo (unless meaning is different, but out of scope)
+                // If the term matches normalized word, but actual word has accents, maybe return actual word?
+                // e.g. input "atletico" matches normalized "atletico" from "atlético".
+                // We should suggest "atlético".
+                if ($term !== $word) {
+                     return $word;
+                }
+                return false; 
             }
 
             // Only consider matches that are reasonably close AND
             // prefer words that start with the same letter for better suggestions
             $distance_penalty = 0;
-            if (mb_substr($term, 0, 1) !== mb_substr($word, 0, 1)) {
+            if (mb_substr($normalized_term, 0, 1) !== mb_substr($normalized_word, 0, 1)) {
                 $distance_penalty = 2; // Penalize words starting with different letter
             }
 
@@ -298,63 +305,61 @@ class Typo_Corrector
             }
         }
 
-        // Logic for multi-word phrases?
-        // V1: Only correcting single word typos or picking the best match for the whole string if it matches a single token?
-        // Actually, if user types "zaptilla roja" and "zapatilla" is in index.
-        // levenshtein("zaptilla roja", "zapatilla") is huge.
-        // We should tokenize input too.
-
         // Improved V1 Logic: Tokenize input, correct individual words.
         $input_tokens = explode(' ', $term);
-        $corrected_tokens = array();
-        $has_correction = false;
+        // Only try token correction if it's a multi-word phrase
+        if (count($input_tokens) > 1) {
+            $corrected_tokens = array();
+            $has_correction = false;
 
-        foreach ($input_tokens as $token) {
-            if (strlen($token) < 4) {
-                // Don't correct very short tokens
-                $corrected_tokens[] = $token;
-                continue;
-            }
-
-            // Check if token exists in dictionary
-            if (in_array($token, $words)) {
-                $corrected_tokens[] = $token;
-                continue;
-            }
-
-            // Find best match for token
-            $token_best_match = $token;
-            $token_shortest_distance = -1;
-
-            foreach ($words as $word) {
-                $dist = levenshtein($token, $word);
-
-                // Apply penalty for different starting letter
-                $dist_penalty = 0;
-                if (mb_substr($token, 0, 1) !== mb_substr($word, 0, 1)) {
-                    $dist_penalty = 2;
+            foreach ($input_tokens as $token) {
+                if (strlen($token) < 4) {
+                    $corrected_tokens[] = $token;
+                    continue;
                 }
 
-                $effective_dist = $dist + $dist_penalty;
+                // Check if token exists
+                if (in_array($token, $words)) {
+                    $corrected_tokens[] = $token;
+                    continue;
+                }
 
-                if ($effective_dist <= 3) {
-                    if ($token_shortest_distance < 0 || $effective_dist < $token_shortest_distance) {
-                        $token_shortest_distance = $effective_dist;
-                        $token_best_match = $word;
+                $normalized_token = function_exists('remove_accents') ? remove_accents($token) : $token;
+                
+                // Find best match for token
+                $token_best_match = $token;
+                $token_shortest_distance = -1;
+
+                foreach ($words as $word) {
+                    $normalized_word = function_exists('remove_accents') ? remove_accents($word) : $word;
+                    $dist = levenshtein($normalized_token, $normalized_word);
+
+                    $dist_penalty = 0;
+                    if (mb_substr($normalized_token, 0, 1) !== mb_substr($normalized_word, 0, 1)) {
+                        $dist_penalty = 2;
+                    }
+
+                    $effective_dist = $dist + $dist_penalty;
+
+                    if ($effective_dist <= 3) {
+                        if ($token_shortest_distance < 0 || $effective_dist < $token_shortest_distance) {
+                            $token_shortest_distance = $effective_dist;
+                            $token_best_match = $word;
+                        }
                     }
                 }
+
+                if ($token_best_match !== $token) {
+                    $has_correction = true;
+                    $corrected_tokens[] = $token_best_match;
+                } else {
+                    $corrected_tokens[] = $token;
+                }
             }
 
-            if ($token_best_match !== $token) {
-                $has_correction = true;
-                $corrected_tokens[] = $token_best_match;
-            } else {
-                $corrected_tokens[] = $token;
+            if ($has_correction) {
+                return implode(' ', $corrected_tokens);
             }
-        }
-
-        if ($has_correction) {
-            return implode(' ', $corrected_tokens);
         }
 
         return $best_match;
