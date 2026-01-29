@@ -70,41 +70,23 @@ class Ajax_Handler
         $query_handler = new Search_Query();
         $query = $query_handler->search($term);
 
+        // Check if correction was applied
+        $is_correction = $query_handler->has_correction();
+        $correction_info = $query_handler->get_correction_info();
+
         if (!$query->have_posts()) {
-            // Only use typo correction for longer terms that look like actual typos
-            // (not for short partial searches like "cami")
-            if (strlen($term) >= 4) {
-                $corrector = \TRB_Product_Search\Typo_Corrector::get_instance();
-                $suggestion = $corrector->correct($term);
-
-                if ($suggestion) {
-                    // Perform search with suggestion
-                    $query = $query_handler->search($suggestion);
-                    $is_correction = true;
-                } else {
-                    wp_send_json_error(array('message' => __('No products found', 'trb-product-search')));
-                }
-            } else {
-                wp_send_json_error(array('message' => __('No products found', 'trb-product-search')));
-            }
-        } else {
-            $is_correction = false;
-        }
-
-        // Double check if the suggestion found anything
-        if (isset($is_correction) && $is_correction && !$query->have_posts()) {
             wp_send_json_error(array('message' => __('No products found', 'trb-product-search')));
         }
 
         ob_start();
         echo '<ul class="trb-search-dropdown-list">';
 
-        if (isset($is_correction) && $is_correction) {
+        if ($is_correction) {
             echo '<li class="trb-search-suggestion">';
             printf(
                 esc_html__('No results for "%s". Showing results for "%s"', 'trb-product-search'),
-                esc_html($term),
-                '<strong>' . esc_html($suggestion) . '</strong>'
+                esc_html($correction_info['original']),
+                '<strong>' . esc_html($correction_info['corrected']) . '</strong>'
             );
             echo '</li>';
         }
