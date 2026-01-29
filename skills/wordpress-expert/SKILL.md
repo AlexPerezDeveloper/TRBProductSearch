@@ -2,7 +2,9 @@
 name: wordpress-expert
 description: Expert WordPress development with plugin creation, theme customization, MCP integration, and ecosystem mastery. Desarrollo experto en WordPress con creación de plugins, personalización de temas, integración MCP y dominio del ecosistema.
 
-  **Use when / Usar cuando:** Creating plugins (crear plugins), building themes (construir temas), customizing WordPress sites (personalizar sitios WordPress), integrating MCP for WordPress operations (integrar MCP para operaciones WordPress), developing custom post types (desarrollar custom post types), creating REST API endpoints (crear endpoints REST API), extending WooCommerce (extender WooCommerce), working with WordPress hooks/filters (trabajar con hooks/filtros WordPress), database operations (operaciones de base de datos), WordPress configuration (configuración WordPress), multisite setup (configuración multisite), performance optimization (optimización de rendimiento).
+  **Use when / Usar cuando:** Creating plugins (crear plugins), building themes (construir temas), customizing WordPress sites (personalizar sitios WordPress), integrating MCP for WordPress operations (integrar MCP para operaciones WordPress), developing custom post types (desarrollar custom post types), creating REST API endpoints (crear endpoints REST API), extending WooCommerce (extender WooCommerce), working with WordPress hooks/filters (trabajar con hooks/filtros WordPress), database operations (operaciones de base de datos), WordPress configuration (configuración WordPress), multisite setup (configuración multisite), performance optimization (optimización de rendimiento WordPress).
+
+  **WordPress-Specific / Específico WordPress:** Hooks (actions/filters), WP REST API, Custom Post Types, Meta boxes, Transients API, wpdb, $wpdb->prepare(), WP_Query, WP Cron, Shortcodes, Widgets, Sidebars, Theme Customizer, Block Editor (Gutenberg), Full Site Editing (FSE).
 ---
 
 # WordPress Expert
@@ -11,7 +13,14 @@ description: Expert WordPress development with plugin creation, theme customizat
 
 This skill provides expert-level WordPress development capabilities, focusing on the WordPress ecosystem, architecture, and best practices. It covers plugin development, theme customization, MCP (Model Context Protocol) integration for WordPress operations, custom post types, REST API development, WooCommerce extensions, and database operations.
 
-**Not covered:** General PHP programming (use general PHP skills for that). This skill focuses specifically on WordPress patterns, APIs, hooks, filters, and ecosystem-specific knowledge.
+## PHP Foundation for WordPress
+
+WordPress is built on PHP. This skill focuses on **WordPress-specific patterns**.
+
+**WordPress PHP Version Support:**
+- WordPress 6.4+ recommends PHP 8.0+
+- WordPress 6.7+ recommends PHP 8.1+
+- Use modern PHP features where backward compatibility allows
 
 ## Core Capabilities
 
@@ -412,7 +421,7 @@ function custom_product_class( $classname, $product_type ) {
 
 Implement WordPress security standards in all custom code.
 
-**Essential security practices:**
+**WordPress-specific security practices:**
 
 1. **Nonce verification:**
 ```php
@@ -515,10 +524,59 @@ add_filter( 'script_loader_tag', 'add_defer_attribute', 10, 2 );
 8. **Version control**: Use semantic versioning and maintain changelog
 9. **Testing**: Test across WordPress versions, themes, and common plugins
 10. **Performance conscious**: Minimize database queries, cache when appropriate
+11. **Modern PHP**: Apply PHP 8.3+ features where backward compatible
+
+## Testing WordPress Code
+
+**WordPress-specific testing:**
+
+```php
+// Installing WordPress test suite
+composer require --dev phpunit/phpunit
+composer require --dev yoast/phpunit-polyfills
+
+// phpunit.xml
+<phpunit bootstrap="tests/bootstrap.php">
+    <testsuites>
+        <testsuite name="Plugin Test Suite">
+            <directory>tests/unit</directory>
+            <directory>tests/integration</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>
+
+// tests/bootstrap.php
+$_tests_dir = getenv( 'WP_TESTS_DIR' );
+if ( ! $_tests_dir ) {
+    $_tests_dir = rtrim( sys_get_temp_dir(), '/\\' ) . '/wordpress-tests-lib';
+}
+
+require_once $_tests_dir . '/includes/functions.php';
+
+function _manually_load_plugin() {
+    require dirname( __FILE__ ) . '/../plugin-name.php';
+}
+tests_add_filter( 'muplugins_loaded', '_manually_load_plugin' );
+
+require $_tests_dir . '/includes/bootstrap.php';
+```
+
+**Example unit test:**
+```php
+class Plugin_Test extends \PHPUnit\Framework\TestCase {
+    public function test_plugin_activated() {
+        $this->assertTrue( is_plugin_active( 'plugin-name/plugin-name.php' ) );
+    }
+
+    public function test_custom_post_type_registered() {
+        $this->assertTrue( post_type_exists( 'project' ) );
+    }
+}
+```
 
 ## Resources
 
-### references/
+### WordPress-specific references/
 - **plugin-patterns.md**: Comprehensive plugin development patterns and architecture
 - **hooks-filters.md**: Reference guide for common WordPress hooks and filters
 - **mcp-operations.md**: WordPress MCP integration patterns and operations

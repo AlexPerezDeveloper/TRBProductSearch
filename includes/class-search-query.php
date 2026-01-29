@@ -49,6 +49,20 @@ class Search_Query
     private $matched_product_ids = array();
 
     /**
+     * Original search term before correction.
+     *
+     * @var string|null
+     */
+    private $original_term = null;
+
+    /**
+     * Corrected search term (if correction was applied).
+     *
+     * @var string|null
+     */
+    private $corrected_term = null;
+
+    /**
      * Execute the search.
      *
      * @param string $term Search term.
@@ -149,6 +163,71 @@ class Search_Query
         $this->current_search_terms = array();
         $this->matched_product_ids = array();
 
+        // If no results and term is eligible for correction
+        if (!$query->have_posts() && strlen($term) >= 4) {
+            $corrector = \TRB_Product_Search\Typo_Corrector::get_instance();
+            $suggestion = $corrector->correct($term);
+
+            if ($suggestion) {
+                $this->corrected_term = $suggestion;
+
+                // Re-run search with corrected term
+                // Need to rebuild args with the corrected term
+                // Also need to re-apply synonyms, SKU, and attributes logic
+
+                // Get synonyms for corrected term
+                $corrected_search_terms = array($suggestion);
+
+                if (!empty($synonyms_option)) {
+                    $synonym_groups = explode("\n", $synonyms_option);
+                    foreach ($synonym_groups as $group) {
+                        $group_terms = array_map('trim', explode(',', $group));
+
+                        // If the corrected term is in this group, include all terms from the group
+                        $found = false;
+                        foreach ($group_terms as $group_term) {
+                            if (mb_strtolower($group_term) === mb_strtolower($suggestion)) {
+                                $found = true;
+                                break;
+                            }
+                        }
+
+                        if ($found) {
+                            $corrected_search_terms = array_unique(array_merge($corrected_search_terms, $group_terms));
+                        }
+                    }
+                }
+
+                // Get matching IDs from SKU and Attributes for corrected term
+                $corrected_sku_ids = $this->sku_search->get_matching_product_ids($suggestion);
+                $corrected_attr_ids = $this->attributes_search->get_matching_product_ids($suggestion);
+                $this->matched_product_ids = array_unique(array_merge($corrected_sku_ids, $corrected_attr_ids));
+
+                // Update args for corrected search
+                $args['s'] = $suggestion;
+
+                // Re-apply filters for the corrected search
+                $this->current_search_terms = $corrected_search_terms;
+                add_filter('posts_search', array($this, 'custom_search_filter'), 10, 2);
+
+                if ($this->sku_search->is_enabled()) {
+                    add_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10, 2);
+                    add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
+                }
+
+                $query = new \WP_Query($args);
+
+                // Cleanup filters again
+                remove_filter('posts_search', array($this, 'custom_search_filter'), 10);
+                if ($this->sku_search->is_enabled()) {
+                    remove_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10);
+                    remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
+                }
+                $this->current_search_terms = array();
+                $this->matched_product_ids = array();
+            }
+        }
+
         return $query;
     }
 
@@ -231,5 +310,48 @@ class Search_Query
         $sku_priority = "IF(mt_sku.meta_value = '{$term}', 1, 0) DESC";
 
         return "{$sku_priority}, {$wpdb->posts}.post_title ASC";
+    }
+
+    /**
+     * Get the original search term.
+     *
+     * @return string|null
+     */
+    public function get_original_term()
+    {
+        return $this->original_term;
+    }
+
+    /**
+     * Get the corrected search term.
+     *
+     * @return string|null
+     */
+    public function get_corrected_term()
+    {
+        return $this->corrected_term;
+    }
+
+    /**
+     * Check if a correction was applied.
+     *
+     * @return bool
+     */
+    public function has_correction()
+    {
+        return $this->corrected_term !== null;
+    }
+
+    /**
+     * Get correction metadata (for template use).
+     *
+     * @return array{original: string|null, corrected: string|null}
+     */
+    public function get_correction_info()
+    {
+        return array(
+            'original' => $this->original_term,
+            'corrected' => $this->corrected_term,
+        );
     }
 }

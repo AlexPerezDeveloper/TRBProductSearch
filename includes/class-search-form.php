@@ -111,8 +111,11 @@ class Search_Form
             $query_handler = new Search_Query();
             $results = $query_handler->search($term);
 
+            // Get correction info if any
+            $correction_info = $query_handler->get_correction_info();
+
             $results_renderer = new Search_Results();
-            $results_renderer->render($results);
+            $results_renderer->render($results, $correction_info);
         }
     }
 }
