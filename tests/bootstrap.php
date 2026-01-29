@@ -85,13 +85,13 @@ if (!function_exists('esc_textarea')) {
 
 if (!function_exists('sanitize_text_field')) {
     function sanitize_text_field($str) {
-        return strip_tags($str);
+        return strip_tags((string) $str);
     }
 }
 
 if (!function_exists('sanitize_textarea_field')) {
     function sanitize_textarea_field($str) {
-        return strip_tags($str);
+        return strip_tags((string) $str);
     }
 }
 
@@ -287,6 +287,23 @@ if (!function_exists('check_ajax_referer')) {
     }
 }
 
+if (!function_exists('remove_accents')) {
+    function remove_accents($str) {
+        if (!preg_match('/[\x80-\xff]/', $str)) {
+            return $str;
+        }
+        // Simple mapping for common accents
+        $chars = array(
+            'á'=>'a', 'é'=>'e', 'í'=>'i', 'ó'=>'o', 'ú'=>'u',
+            'Á'=>'A', 'É'=>'E', 'Í'=>'I', 'Ó'=>'O', 'Ú'=>'U',
+            'ñ'=>'n', 'Ñ'=>'N',
+            'à'=>'a', 'è'=>'e', 'ì'=>'i', 'ò'=>'o', 'ù'=>'u',
+            'ä'=>'a', 'ë'=>'e', 'ï'=>'i', 'ö'=>'o', 'ü'=>'u',
+        );
+        return strtr($str, $chars);
+    }
+}
+
 // Mock WooCommerce
 if (!class_exists('WooCommerce')) {
     class WooCommerce {
@@ -399,6 +416,7 @@ if (!class_exists('WP_Query')) {
         private $post_count = 0;
         private $current_post = -1;
         private $in_the_loop = false;
+        public $query_vars = array();
 
         public function __construct($args = array()) {
             $this->parse_query($args);
@@ -437,6 +455,105 @@ if (!class_exists('WP_Query')) {
 
 // Load test helpers
 require_once __DIR__ . '/helpers.php';
+
+// Mock $wpdb global
+if (!isset($GLOBALS['wpdb'])) {
+    $GLOBALS['wpdb'] = new class {
+        public $posts = 'wp_posts';
+        public $postmeta = 'wp_postmeta';
+        public $terms = 'wp_terms';
+        public $term_taxonomy = 'wp_term_taxonomy';
+        public $term_relationships = 'wp_term_relationships';
+        public $prefix = 'wp_';
+        
+        public $mock_results = array();
+
+        public function prepare($query, ...$args) {
+            // Handle array argument (when args contain an array)
+            if (count($args) === 1 && is_array($args[0])) {
+                $args = $args[0];
+            }
+            foreach ($args as $arg) {
+                if (is_numeric($arg)) {
+                    $query = preg_replace('/(%d|%f)/', $arg, $query, 1);
+                } else {
+                    $arg = addslashes((string) $arg);
+                    $query = preg_replace('/(%s)/', "'{$arg}'", $query, 1);
+                }
+            }
+            return $query;
+        }
+
+        public function get_col($query) {
+            if (isset($this->mock_results['get_col'])) {
+                $mock = $this->mock_results['get_col'];
+                if (is_array($mock) && !empty($mock) && isset($mock[0]) && is_array($mock[0])) {
+                    return array_shift($this->mock_results['get_col']);
+                }
+                return $mock;
+            }
+            return array();
+        }
+
+        public function get_var($query) {
+            if (isset($this->mock_results['get_var'])) {
+                 return $this->mock_results['get_var'];
+            }
+            return null;
+        }
+
+        public function get_results($query) {
+             if (isset($this->mock_results['get_results'])) {
+                $mock = $this->mock_results['get_results'];
+                // Check if it's a sequence of results (array of arrays)
+                if (is_array($mock) && !empty($mock) && isset($mock[0]) && is_array($mock[0]) && isset($mock[0][0]) && is_object($mock[0][0])) {
+                     return array_shift($this->mock_results['get_results']);
+                }
+                return $mock;
+            }
+            return array();
+        }
+
+        public function esc_like($text) {
+            return addcslashes($text, '_%\\');
+        }
+    };
+}
+
+// Mock get_the_ID function
+if (!function_exists('get_the_ID')) {
+    function get_the_ID() {
+        return 1;
+    }
+}
+
+// Mock locate_template function
+if (!function_exists('locate_template')) {
+    function locate_template($template_names, $load = false, $require_once = true) {
+        return '';
+    }
+}
+
+// Mock load_template function
+if (!function_exists('load_template')) {
+    function load_template($_template_file, $require_once = true) {
+        return;
+    }
+}
+
+// Mock wp_reset_postdata function
+if (!function_exists('wp_reset_postdata')) {
+    function wp_reset_postdata() {
+        return;
+    }
+}
+
+// Mock get_permalink function
+if (!function_exists('get_permalink')) {
+    function get_permalink($post = 0) {
+        return 'http://example.com/product/';
+    }
+}
 
 // Load plugin files for testing
 if (file_exists(__DIR__ . '/../includes/class-plugin-init.php')) {

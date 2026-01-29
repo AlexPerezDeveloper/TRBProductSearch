@@ -71,14 +71,19 @@ class Ajax_Handler
         $query = $query_handler->search($term);
 
         if (!$query->have_posts()) {
-            // Check for typos
-            $corrector = Typo_Corrector::get_instance();
-            $suggestion = $corrector->correct($term);
+            // Only use typo correction for longer terms that look like actual typos
+            // (not for short partial searches like "cami")
+            if (strlen($term) >= 4) {
+                $corrector = \TRB_Product_Search\Typo_Corrector::get_instance();
+                $suggestion = $corrector->correct($term);
 
-            if ($suggestion) {
-                // Perform search with suggestion
-                $query = $query_handler->search($suggestion);
-                $is_correction = true;
+                if ($suggestion) {
+                    // Perform search with suggestion
+                    $query = $query_handler->search($suggestion);
+                    $is_correction = true;
+                } else {
+                    wp_send_json_error(array('message' => __('No products found', 'trb-product-search')));
+                }
             } else {
                 wp_send_json_error(array('message' => __('No products found', 'trb-product-search')));
             }
@@ -87,14 +92,14 @@ class Ajax_Handler
         }
 
         // Double check if the suggestion found anything
-        if ($is_correction && !$query->have_posts()) {
+        if (isset($is_correction) && $is_correction && !$query->have_posts()) {
             wp_send_json_error(array('message' => __('No products found', 'trb-product-search')));
         }
 
         ob_start();
         echo '<ul class="trb-search-dropdown-list">';
 
-        if ($is_correction) {
+        if (isset($is_correction) && $is_correction) {
             echo '<li class="trb-search-suggestion">';
             printf(
                 esc_html__('No results for "%s". Showing results for "%s"', 'trb-product-search'),

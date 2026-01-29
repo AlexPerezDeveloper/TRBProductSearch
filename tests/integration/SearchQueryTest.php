@@ -88,17 +88,17 @@ class SearchQueryTest extends TestCase {
     }
 
     /**
-     * Test synonym_search_filter method exists.
+     * Test custom_search_filter method exists.
      */
-    public function test_synonym_search_filter_method_exists() {
+    public function test_custom_search_filter_method_exists() {
         $query_handler = new \TRB_Product_Search\Search_Query();
-        $this->assertTrue(method_exists($query_handler, 'synonym_search_filter'), 'synonym_search_filter method should exist');
+        $this->assertTrue(method_exists($query_handler, 'custom_search_filter'), 'custom_search_filter method should exist');
     }
 
     /**
      * Test search filter returns modified SQL.
      */
-    public function test_synonym_search_filter_modifies_sql() {
+    public function test_custom_search_filter_modifies_sql() {
         $query_handler = new \TRB_Product_Search\Search_Query();
         $reflection = new ReflectionClass($query_handler);
 
@@ -108,7 +108,7 @@ class SearchQueryTest extends TestCase {
         $property->setValue($query_handler, array('test', 'exam'));
 
         $wp_query = new \WP_Query();
-        $sql = $query_handler->synonym_search_filter('', $wp_query);
+        $sql = $query_handler->custom_search_filter('', $wp_query);
 
         $this->assertIsString($sql, 'Filter should return string');
         $this->assertNotEmpty($sql, 'Filter should not return empty string');
@@ -117,14 +117,38 @@ class SearchQueryTest extends TestCase {
     }
 
     /**
+     * Test custom_search_filter includes matched IDs.
+     */
+    public function test_custom_search_filter_includes_matched_ids() {
+        $query_handler = new \TRB_Product_Search\Search_Query();
+        $reflection = new ReflectionClass($query_handler);
+
+        // Set current search terms
+        $prop_terms = $reflection->getProperty('current_search_terms');
+        $prop_terms->setAccessible(true);
+        $prop_terms->setValue($query_handler, array('test'));
+
+        // Set matched product IDs
+        $prop_ids = $reflection->getProperty('matched_product_ids');
+        $prop_ids->setAccessible(true);
+        $prop_ids->setValue($query_handler, array(101, 202));
+
+        $wp_query = new \WP_Query();
+        $sql = $query_handler->custom_search_filter('', $wp_query);
+
+        $this->assertStringContainsString('ID IN (101,202)', $sql, 'SQL should contain ID IN clause');
+        $this->assertStringContainsString('OR', $sql, 'SQL should use OR logic');
+    }
+
+    /**
      * Test search filter handles empty terms.
      */
-    public function test_synonym_search_filter_with_empty_terms() {
+    public function test_custom_search_filter_with_empty_terms() {
         $query_handler = new \TRB_Product_Search\Search_Query();
         $wp_query = new \WP_Query();
-        $sql = $query_handler->synonym_search_filter('original_sql', $wp_query);
+        $sql = $query_handler->custom_search_filter('original_sql', $wp_query);
 
-        $this->assertEquals('', $sql, 'Filter should return empty string for no terms');
+        $this->assertEquals('original_sql', $sql, 'Filter should return original SQL for no terms');
     }
 
     /**
@@ -165,9 +189,9 @@ class SearchQueryTest extends TestCase {
     }
 
     /**
-     * Test synonym_search_filter handles OR logic.
+     * Test custom_search_filter handles OR logic.
      */
-    public function test_synonym_search_filter_or_logic() {
+    public function test_custom_search_filter_or_logic() {
         $query_handler = new \TRB_Product_Search\Search_Query();
         $reflection = new ReflectionClass($query_handler);
 
@@ -176,7 +200,7 @@ class SearchQueryTest extends TestCase {
         $property->setValue($query_handler, array('term1', 'term2'));
 
         $wp_query = new \WP_Query();
-        $sql = $query_handler->synonym_search_filter('', $wp_query);
+        $sql = $query_handler->custom_search_filter('', $wp_query);
 
         $this->assertStringContainsString(' OR ', $sql, 'SQL should contain OR for synonym matching');
     }

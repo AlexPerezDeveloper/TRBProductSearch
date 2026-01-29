@@ -21,6 +21,34 @@ class Search_Query
     private $current_search_terms = array();
 
     /**
+     * Track if orderby join was added.
+     *
+     * @var bool
+     */
+    private $orderby_join_added = false;
+
+    /**
+     * SKU search instance.
+     *
+     * @var SKU_Search
+     */
+    private $sku_search;
+
+    /**
+     * Attributes search instance.
+     *
+     * @var Attributes_Search
+     */
+    private $attributes_search;
+
+    /**
+     * Matched product IDs from SKU and Attributes.
+     *
+     * @var array
+     */
+    private $matched_product_ids = array();
+
+    /**
      * Execute the search.
      *
      * @param string $term Search term.
@@ -28,6 +56,10 @@ class Search_Query
      */
     public function search($term)
     {
+        // Initialize search instances using singleton pattern
+        $this->sku_search = SKU_Search::get_instance();
+        $this->attributes_search = Attributes_Search::get_instance();
+
         $args = array(
             'post_type' => 'product',
             'post_status' => 'publish',
@@ -59,35 +91,53 @@ class Search_Query
             }
         }
 
+        // Get matching IDs from SKU (includes variations parents)
+        $sku_ids = $this->sku_search->get_matching_product_ids($term);
+        
+        // Get matching IDs from Attributes
+        $attr_ids = $this->attributes_search->get_matching_product_ids($term);
+
+        // Merge and unique IDs
+        $this->matched_product_ids = array_unique(array_merge($sku_ids, $attr_ids));
+
         // Allow modifying args
         $args = apply_filters('trb_product_search_args', $args, $term);
 
-        // If we have multiple terms (synonyms found), we need a custom search query
-        if (count($search_terms) > 1) {
-            $this->current_search_terms = $search_terms;
-            add_filter('posts_search', array($this, 'synonym_search_filter'), 10, 2);
-            $args['s'] = $term; // Trigger search logic
+        // Always use custom search filter for partial matching and ID inclusion
+        $this->current_search_terms = $search_terms;
+        add_filter('posts_search', array($this, 'custom_search_filter'), 10, 2);
 
-            $query = new \WP_Query($args);
-
-            remove_filter('posts_search', array($this, 'synonym_search_filter'), 10);
-            $this->current_search_terms = array();
-        } else {
-            $args['s'] = $term;
-            $query = new \WP_Query($args);
+        // Add join for SKU ordering if SKU search is enabled
+        // We always add this to ensure we can sort by SKU match priority
+        if ($this->sku_search->is_enabled()) {
+            add_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10, 2);
+            add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
         }
+
+        $args['s'] = $term; // Trigger search logic
+
+        $query = new \WP_Query($args);
+
+        // Cleanup filters
+        remove_filter('posts_search', array($this, 'custom_search_filter'), 10);
+        if ($this->sku_search->is_enabled()) {
+            remove_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10);
+            remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
+        }
+        $this->current_search_terms = array();
+        $this->matched_product_ids = array();
 
         return $query;
     }
 
     /**
-     * Modify the search SQL to include synonyms (OR logic).
+     * Modify the search SQL to include synonyms and better partial matching.
      *
      * @param string   $search   The generated search SQL.
      * @param \WP_Query $wp_query The WP_Query instance.
      * @return string Modified search SQL.
      */
-    public function synonym_search_filter($search, $wp_query)
+    public function custom_search_filter($search, $wp_query)
     {
         global $wpdb;
 
@@ -95,25 +145,69 @@ class Search_Query
             return $search;
         }
 
-        $search = '';
-        $n = !empty($wp_query->query_vars['exact']) ? '' : '%';
+        $wildcard = '%';
 
-        $search .= " AND (";
-
-        $first = true;
+        // Build OR conditions for all search terms (synonyms)
+        $conditions = array();
         foreach ($this->current_search_terms as $t) {
             $term = esc_sql($wpdb->esc_like($t));
-
-            if (!$first) {
-                $search .= " OR ";
-            }
-
-            $search .= "({$wpdb->posts}.post_title LIKE '{$n}{$term}{$n}') OR ({$wpdb->posts}.post_content LIKE '{$n}{$term}{$n}')";
-            $first = false;
+            // Search in title and content for partial matches
+            $conditions[] = "({$wpdb->posts}.post_title LIKE '{$wildcard}{$term}{$wildcard}')";
+            $conditions[] = "({$wpdb->posts}.post_content LIKE '{$wildcard}{$term}{$wildcard}')";
         }
 
-        $search .= ")";
+        // Add ID matches if any
+        if (!empty($this->matched_product_ids)) {
+            $ids_list = implode(',', array_map('intval', $this->matched_product_ids));
+            $conditions[] = "({$wpdb->posts}.ID IN ($ids_list))";
+        }
+
+        // Combine with OR - any term match is good enough
+        $search = ' AND (' . implode(' OR ', $conditions) . ')';
 
         return $search;
+    }
+
+    /**
+     * Join postmeta for SKU ordering.
+     *
+     * @param string    $join     Current join clause.
+     * @param \WP_Query $wp_query WP_Query instance.
+     * @return string Modified join clause.
+     */
+    public function join_postmeta_for_orderby($join, $wp_query)
+    {
+        global $wpdb;
+
+        // Ensure we only join once
+        if (strpos($join, 'mt_sku') === false) {
+             $join .= " LEFT JOIN {$wpdb->postmeta} AS mt_sku ON ({$wpdb->posts}.ID = mt_sku.post_id AND mt_sku.meta_key = '_sku') ";
+        }
+
+        return $join;
+    }
+
+    /**
+     * Priority ordering for exact SKU matches.
+     *
+     * @param string    $orderby  Current orderby clause.
+     * @param \WP_Query $wp_query WP_Query instance.
+     * @return string Modified orderby clause.
+     */
+    public function priority_orderby($orderby, $wp_query)
+    {
+        global $wpdb;
+
+        if (empty($wp_query->query_vars['s'])) {
+            return $orderby;
+        }
+
+        $term = esc_sql($wpdb->esc_like($wp_query->query_vars['s']));
+
+        // Use the meta_value from the joined postmeta table
+        // The JOIN is added in the search() method
+        $sku_priority = "IF(mt_sku.meta_value = '{$term}', 1, 0) DESC";
+
+        return "{$sku_priority}, {$wpdb->posts}.post_title ASC";
     }
 }
