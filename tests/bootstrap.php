@@ -399,6 +399,7 @@ if (!class_exists('WP_Query')) {
         private $post_count = 0;
         private $current_post = -1;
         private $in_the_loop = false;
+        public $query_vars = array();
 
         public function __construct($args = array()) {
             $this->parse_query($args);
@@ -445,7 +446,10 @@ if (!isset($GLOBALS['wpdb'])) {
         public $postmeta = 'wp_postmeta';
         public $terms = 'wp_terms';
         public $term_taxonomy = 'wp_term_taxonomy';
+        public $term_relationships = 'wp_term_relationships';
         public $prefix = 'wp_';
+        
+        public $mock_results = array();
 
         public function prepare($query, ...$args) {
             // Handle array argument (when args contain an array)
@@ -463,11 +467,33 @@ if (!isset($GLOBALS['wpdb'])) {
             return $query;
         }
 
+        public function get_col($query) {
+            if (isset($this->mock_results['get_col'])) {
+                $mock = $this->mock_results['get_col'];
+                if (is_array($mock) && !empty($mock) && isset($mock[0]) && is_array($mock[0])) {
+                    return array_shift($this->mock_results['get_col']);
+                }
+                return $mock;
+            }
+            return array();
+        }
+
         public function get_var($query) {
+            if (isset($this->mock_results['get_var'])) {
+                 return $this->mock_results['get_var'];
+            }
             return null;
         }
 
         public function get_results($query) {
+             if (isset($this->mock_results['get_results'])) {
+                $mock = $this->mock_results['get_results'];
+                // Check if it's a sequence of results (array of arrays)
+                if (is_array($mock) && !empty($mock) && isset($mock[0]) && is_array($mock[0]) && isset($mock[0][0]) && is_object($mock[0][0])) {
+                     return array_shift($this->mock_results['get_results']);
+                }
+                return $mock;
+            }
             return array();
         }
 
