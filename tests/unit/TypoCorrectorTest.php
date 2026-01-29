@@ -7,47 +7,58 @@
 
 use PHPUnit\Framework\TestCase;
 
-class TypoCorrectorTest extends TestCase {
+class TypoCorrectorTest extends TestCase
+{
 
     /**
      * Test correction with accents.
      */
-    public function test_correction_with_accents() {
+    public function test_correction_with_accents()
+    {
         $corrector = \TRB_Product_Search\Typo_Corrector::get_instance();
-        
+
         // Mock dictionary with "atlético"
-        // Note: We need to set the option that the class reads
-        TRB_Product_Search_Tests_Setup::set_option('trb_search_word_index', array('atlético', 'balón', 'fútbol'));
+        // V2 Structure: [length][first_char][]
+        $index = array(
+            8 => array('a' => array('atlético')),
+            5 => array('b' => array('balón')),
+            6 => array('f' => array('fútbol'))
+        );
+        TRB_Product_Search_Tests_Setup::set_option('trb_search_word_index_v2', $index);
 
-        // "atlethic" -> "atlético"
-        // Levenshtein byte distance:
-        // atlethic (8)
-        // atlético (9 bytes in UTF-8)
-        // This is tricky for standard levenshtein.
-        
-        $result = $corrector->correct('atlethic');
+        // "atlethico" -> "atlético" (len 9 vs 8)
+        // "atletico" -> "atlético" (len 8 vs 8)
 
-        // We expect it to find "atlético" if the distance logic permits
-        $this->assertEquals('atlético', $result, 'Should correct atlethic to atlético');
+        $result = $corrector->correct('atletico');
+
+        $this->assertEquals('atlético', $result, 'Should correct atletico to atlético');
     }
 
     /**
      * Test simple typo.
      */
-    public function test_simple_typo() {
+    public function test_simple_typo()
+    {
         $corrector = \TRB_Product_Search\Typo_Corrector::get_instance();
-        TRB_Product_Search_Tests_Setup::set_option('trb_search_word_index', array('iphone', 'samsung'));
+
+        $index = array(
+            6 => array('i' => array('iphone')),
+            7 => array('s' => array('samsung'))
+        );
+        TRB_Product_Search_Tests_Setup::set_option('trb_search_word_index_v2', $index);
 
         $result = $corrector->correct('ipone');
         $this->assertEquals('iphone', $result);
     }
 
-    protected function setUp(): void {
+    protected function setUp(): void
+    {
         parent::setUp();
         TRB_Product_Search_Tests_Setup::setup();
     }
 
-    protected function tearDown(): void {
+    protected function tearDown(): void
+    {
         TRB_Product_Search_Tests_Setup::cleanup();
         parent::tearDown();
     }

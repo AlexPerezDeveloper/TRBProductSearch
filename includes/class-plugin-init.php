@@ -65,6 +65,7 @@ class Plugin_Init
         \TRB_Product_Search\Ajax_Handler::get_instance()->init();
         \TRB_Product_Search\Settings::get_instance()->init();
         \TRB_Product_Search\Typo_Corrector::get_instance()->init();
+        \TRB_Product_Search\Cache_Manager::get_instance()->init();
     }
 
     /**
@@ -80,6 +81,7 @@ class Plugin_Init
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-typo-corrector.php';
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-sku-search.php';
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-attributes-search.php';
+        require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-cache-manager.php';
     }
 
     /**
