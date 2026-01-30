@@ -88,8 +88,8 @@ class Search_Form
                 <label for="trb_search_field"
                     class="screen-reader-text"><?php esc_html_e('Search for:', 'trb-product-search'); ?></label>
                 <input type="search" id="trb_search_field" class="search-field"
-                    placeholder="<?php echo esc_attr($atts['placeholder']); ?>"
-                    value="<?php echo esc_attr($search_query); ?>" name="s" />
+                    placeholder="<?php echo esc_attr($atts['placeholder']); ?>" value="<?php echo esc_attr($search_query); ?>"
+                    name="s" />
                 <input type="hidden" name="post_type" value="product" />
                 <button type="submit" class="search-submit"><?php esc_html_e('Search', 'trb-product-search'); ?></button>
             </form>

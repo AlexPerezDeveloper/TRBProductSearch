@@ -87,11 +87,16 @@ class Attributes_Search
     /**
      * Get matching product IDs for attributes search.
      *
-     * @param string $term Search term.
+     * @param string|array $term Search term or array of terms.
      * @return array Array of product IDs.
      */
     public function get_matching_product_ids($term)
     {
+        // If array passed, delegate to multi-word method
+        if (is_array($term)) {
+            return $this->get_matching_product_ids_for_terms($term);
+        }
+
         if (!$this->is_enabled()) {
             return array();
         }
@@ -130,6 +135,33 @@ class Attributes_Search
         $product_ids = $wpdb->get_col($sql);
 
         return array_unique(array_map('intval', $product_ids ?: array()));
+    }
+
+    /**
+     * Get product IDs matching ALL terms (intersection).
+     *
+     * @param array $terms Array of search terms.
+     * @return array Array of product IDs matching all terms.
+     */
+    private function get_matching_product_ids_for_terms($terms)
+    {
+        if (empty($terms)) {
+            return array();
+        }
+
+        // Get matches for each term
+        $term_results = array();
+        foreach ($terms as $term) {
+            $term_results[] = $this->get_matching_product_ids($term);
+        }
+
+        // Intersection: IDs present in ALL results
+        $intersection = $term_results[0];
+        for ($i = 1; $i < count($term_results); $i++) {
+            $intersection = array_intersect($intersection, $term_results[$i]);
+        }
+
+        return array_values($intersection);
     }
 
     /**
