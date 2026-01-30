@@ -74,6 +74,7 @@ class Settings
         register_setting('trb_product_search_options', 'trb_search_attributes_enabled', array('sanitize_callback' => array($this, 'sanitize_checkbox'), 'default' => '0'));
         register_setting('trb_product_search_options', 'trb_search_selected_attributes', array('sanitize_callback' => array($this, 'sanitize_attributes'), 'default' => array()));
         register_setting('trb_product_search_options', 'trb_search_orderby', array('sanitize_callback' => 'sanitize_text_field', 'default' => 'relevance'));
+        register_setting('trb_product_search_options', 'trb_search_logic', array('sanitize_callback' => array($this, 'sanitize_search_logic'), 'default' => 'and'));
 
         // Analytics settings
         register_setting('trb_product_search_options', 'trb_analytics_enabled', array('sanitize_callback' => array($this, 'sanitize_checkbox'), 'default' => '1'));
@@ -131,6 +132,14 @@ class Settings
             'trb_search_orderby',
             __('Order Results By', 'trb-product-search'),
             array($this, 'render_orderby_field'),
+            'trb-product-search',
+            'trb_search_general'
+        );
+
+        add_settings_field(
+            'trb_search_logic',
+            __('Logic for multi-word searches', 'trb-product-search'),
+            array($this, 'render_search_logic_field'),
             'trb-product-search',
             'trb_search_general'
         );

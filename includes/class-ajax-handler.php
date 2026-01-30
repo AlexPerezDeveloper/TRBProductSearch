@@ -64,12 +64,16 @@ class Ajax_Handler
 
         $term = isset($_GET['term']) ? sanitize_text_field($_GET['term']) : '';
 
-        if (empty($term) || strlen($term) < 3) {
-            wp_send_json_error(array('message' => __('Term too short', 'trb-product-search')));
+        // Validate search term
+        $validation = $this->validate_search_term($term);
+        if (is_wp_error($validation)) {
+            wp_send_json_error(array('message' => $validation->get_error_message()));
+            return;
         }
 
         if (!class_exists('\TRB_Product_Search\Search_Query')) {
             wp_send_json_error(array('message' => __('Search Query class missing', 'trb-product-search')));
+            return;
         }
 
         $cache = Cache_Manager::get_instance();
@@ -152,5 +156,74 @@ class Ajax_Handler
         wp_reset_postdata();
 
         wp_send_json_success(array('html' => $html));
+    }
+
+    /**
+     * Validate search term and return appropriate error if invalid.
+     *
+     * Handles multi-word search validation including:
+     * - Empty search terms
+     * - Terms with only stop words (e.g., "el la de")
+     * - Terms with only short words (e.g., "a b c")
+     * - Single word validation (minimum 2 chars after tokenization)
+     *
+     * @param string $term Raw search term from user input.
+     * @return true|\WP_Error True if valid, WP_Error with message if invalid.
+     */
+    private function validate_search_term($term)
+    {
+        // Check for empty term
+        if (empty(trim($term))) {
+            return new \WP_Error(
+                'empty_term',
+                __('Please enter a search term.', 'trb-product-search')
+            );
+        }
+
+        // Use Search_Query to parse and validate tokens
+        $query_handler = new Search_Query();
+        $tokens = $query_handler->parse_search_terms($term);
+
+        // Check if all words were filtered out (stop words or too short)
+        if (empty($tokens)) {
+            // Determine why tokens are empty for better error message
+            $raw_tokens = preg_split('/\s+/', trim(mb_strtolower($term)), -1, PREG_SPLIT_NO_EMPTY);
+            $stop_words = array('el', 'la', 'de', 'en', 'y', 'a', 'los', 'las', 'un', 'una', 'del', 'al', 'con', 'por', 'para');
+
+            $all_stop_words = true;
+            $all_short = true;
+
+            foreach ($raw_tokens as $token) {
+                if (!in_array($token, $stop_words, true)) {
+                    $all_stop_words = false;
+                }
+                if (mb_strlen($token) >= 2) {
+                    $all_short = false;
+                }
+            }
+
+            // Check short words first (more fundamental issue)
+            // Words that are both stop words AND short should report as short words
+            if ($all_short && count($raw_tokens) > 0) {
+                return new \WP_Error(
+                    'only_short_words',
+                    __('Search terms must be at least 2 characters long.', 'trb-product-search')
+                );
+            }
+
+            if ($all_stop_words && count($raw_tokens) > 0) {
+                return new \WP_Error(
+                    'only_stop_words',
+                    __('Please enter more specific search terms (common words like "el", "la", "de" are ignored).', 'trb-product-search')
+                );
+            }
+
+            return new \WP_Error(
+                'invalid_term',
+                __('Please enter a valid search term.', 'trb-product-search')
+            );
+        }
+
+        return true;
     }
 }
