@@ -73,6 +73,7 @@ class Settings
         register_setting('trb_product_search_options', 'trb_search_sku_enabled', array('sanitize_callback' => array($this, 'sanitize_checkbox'), 'default' => '0'));
         register_setting('trb_product_search_options', 'trb_search_attributes_enabled', array('sanitize_callback' => array($this, 'sanitize_checkbox'), 'default' => '0'));
         register_setting('trb_product_search_options', 'trb_search_selected_attributes', array('sanitize_callback' => array($this, 'sanitize_attributes'), 'default' => array()));
+        register_setting('trb_product_search_options', 'trb_search_orderby', array('sanitize_callback' => 'sanitize_text_field', 'default' => 'relevance'));
 
         // Analytics settings
         register_setting('trb_product_search_options', 'trb_analytics_enabled', array('sanitize_callback' => array($this, 'sanitize_checkbox'), 'default' => '1'));
@@ -106,6 +107,14 @@ class Settings
             'trb_search_attributes_enabled',
             __('Search by Attributes', 'trb-product-search'),
             array($this, 'render_attributes_field'),
+            'trb-product-search',
+            'trb_search_general'
+        );
+
+        add_settings_field(
+            'trb_search_orderby',
+            __('Order Results By', 'trb-product-search'),
+            array($this, 'render_orderby_field'),
             'trb-product-search',
             'trb_search_general'
         );
@@ -272,6 +281,31 @@ class Settings
                 });
             });
         </script>
+        <?php
+    }
+
+    /**
+     * Render orderby select field.
+     */
+    public function render_orderby_field()
+    {
+        $orderby = get_option('trb_search_orderby', 'relevance');
+        ?>
+        <select name="trb_search_orderby">
+            <option value="relevance" <?php selected($orderby, 'relevance'); ?>>
+                <?php esc_html_e('Relevance', 'trb-product-search'); ?></option>
+            <option value="popularity" <?php selected($orderby, 'popularity'); ?>>
+                <?php esc_html_e('Popularity (Sales)', 'trb-product-search'); ?></option>
+            <option value="price_asc" <?php selected($orderby, 'price_asc'); ?>>
+                <?php esc_html_e('Price: Low to High', 'trb-product-search'); ?></option>
+            <option value="price_desc" <?php selected($orderby, 'price_desc'); ?>>
+                <?php esc_html_e('Price: High to Low', 'trb-product-search'); ?></option>
+            <option value="date" <?php selected($orderby, 'date'); ?>><?php esc_html_e('Newest First', 'trb-product-search'); ?>
+            </option>
+        </select>
+        <p class="description">
+            <?php esc_html_e('Choose how you want search results to be ordered by default.', 'trb-product-search'); ?>
+        </p>
         <?php
     }
 

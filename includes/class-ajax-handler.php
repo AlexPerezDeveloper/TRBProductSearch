@@ -71,8 +71,9 @@ class Ajax_Handler
         }
 
         $cache = Cache_Manager::get_instance();
-        // Create a unique key for the final HTML output
-        $cache_key = 'html_result_' . md5($term);
+        $orderby = get_option('trb_search_orderby', 'relevance');
+        // Create a unique key for the final HTML output including ordering
+        $cache_key = 'html_result_' . md5($term . $orderby);
         $cached_html = $cache->get($cache_key);
 
         if (false !== $cached_html) {
