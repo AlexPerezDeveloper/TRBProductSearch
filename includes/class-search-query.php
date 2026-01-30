@@ -70,6 +70,13 @@ class Search_Query
     private $is_multi_word_search = false;
 
     /**
+     * Flag to track if the search has SKU matches.
+     *
+     * @var bool
+     */
+    private $has_sku_matches = false;
+
+    /**
      * Execute the search.
      *
      * @param string $term Search term.
@@ -107,14 +114,19 @@ class Search_Query
         // Check cache
         $cache = Cache_Manager::get_instance();
         $cache_key = $cache->get_search_key($term);
-        $cached_ids = $cache->get($cache_key);
+        $cached_data = $cache->get($cache_key);
 
-        if (false !== $cached_ids) {
+        if (false !== $cached_data) {
             $cache->debug("Hit for term: $term");
-            // If we have cached IDs, we can potentially return early or construct query faster
-            // BUT, WP_Query returns an object, not just IDs.
-            // For now, let's cache the MATCHED IDs (expensive part), and let WP_Query run the final easy fetch.
-            $this->matched_product_ids = $cached_ids;
+
+            if (is_array($cached_data) && isset($cached_data['ids'])) {
+                $this->matched_product_ids = $cached_data['ids'];
+                $this->has_sku_matches = !empty($cached_data['has_sku_matches']);
+            } else {
+                // Backward compatibility
+                $this->matched_product_ids = $cached_data;
+                $this->has_sku_matches = true; // Assume true for safety in old cache
+            }
             $from_cache = true;
         } else {
             $cache->debug("Miss for term: $term");
@@ -128,7 +140,7 @@ class Search_Query
         );
 
         // Check for synonyms
-        $synonyms_option = get_option('trb_search_synonyms', '');
+        $synonyms_option = $this->get_cached_option('trb_search_synonyms', '');
         $search_terms = array($term); // Default to just the original term
 
         if (!empty($synonyms_option)) {
@@ -155,6 +167,7 @@ class Search_Query
         if (!$from_cache) {
             // Get matching IDs from SKU (includes variations parents)
             $sku_ids = $this->sku_search->get_matching_product_ids($term);
+            $this->has_sku_matches = !empty($sku_ids);
 
             // Get matching IDs from Attributes
             $attr_ids = $this->attributes_search->get_matching_product_ids($term);
@@ -163,11 +176,14 @@ class Search_Query
             $this->matched_product_ids = array_unique(array_merge($sku_ids, $attr_ids));
 
             // Cache the result
-            $cache->set($cache_key, $this->matched_product_ids);
+            $cache->set($cache_key, array(
+                'ids' => $this->matched_product_ids,
+                'has_sku_matches' => $this->has_sku_matches
+            ));
         }
 
         // Apply ordering based on settings
-        $orderby_setting = get_option('trb_search_orderby', 'relevance');
+        $orderby_setting = $this->get_cached_option('trb_search_orderby', 'relevance');
         switch ($orderby_setting) {
             case 'popularity':
                 $args['meta_key'] = '_total_sales';
@@ -198,9 +214,8 @@ class Search_Query
         $this->current_search_terms = $search_terms;
         add_filter('posts_search', array($this, 'custom_search_filter'), 10, 2);
 
-        // Add join for SKU ordering if SKU search is enabled
-        // We always add this to ensure we can sort by SKU match priority
-        if ($this->sku_search->is_enabled()) {
+        // Add join for SKU ordering if SKU search is enabled and there are matches
+        if ($this->sku_search->is_enabled() && $this->has_sku_matches) {
             add_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10, 2);
             add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
         }
@@ -211,7 +226,7 @@ class Search_Query
 
         // Cleanup filters
         remove_filter('posts_search', array($this, 'custom_search_filter'), 10);
-        if ($this->sku_search->is_enabled()) {
+        if ($this->sku_search->is_enabled() && $this->has_sku_matches) {
             remove_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10);
             remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
         }
@@ -255,6 +270,8 @@ class Search_Query
 
                 // Get matching IDs from SKU and Attributes for corrected term
                 $corrected_sku_ids = $this->sku_search->get_matching_product_ids($suggestion);
+                $this->has_sku_matches = !empty($corrected_sku_ids);
+
                 $corrected_attr_ids = $this->attributes_search->get_matching_product_ids($suggestion);
                 $this->matched_product_ids = array_unique(array_merge($corrected_sku_ids, $corrected_attr_ids));
 
@@ -265,7 +282,7 @@ class Search_Query
                 $this->current_search_terms = $corrected_search_terms;
                 add_filter('posts_search', array($this, 'custom_search_filter'), 10, 2);
 
-                if ($this->sku_search->is_enabled()) {
+                if ($this->sku_search->is_enabled() && $this->has_sku_matches) {
                     add_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10, 2);
                     add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
                 }
@@ -274,7 +291,7 @@ class Search_Query
 
                 // Cleanup filters again
                 remove_filter('posts_search', array($this, 'custom_search_filter'), 10);
-                if ($this->sku_search->is_enabled()) {
+                if ($this->sku_search->is_enabled() && $this->has_sku_matches) {
                     remove_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10);
                     remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
                 }
@@ -296,16 +313,23 @@ class Search_Query
     private function search_multi_word($term, $tokens)
     {
         // Determine search logic from settings
-        $search_logic = get_option('trb_search_logic', 'and');
+        $search_logic = $this->get_cached_option('trb_search_logic', 'and');
 
         // Check cache with tokens and logic for multi-word queries
         $cache = Cache_Manager::get_instance();
         $cache_key = $cache->get_search_key($term . '|' . implode(',', $tokens) . '|' . $search_logic);
-        $cached_ids = $cache->get($cache_key);
+        $cached_data = $cache->get($cache_key);
 
-        if (false !== $cached_ids) {
+        if (false !== $cached_data) {
             $cache->debug("Hit for multi-word term: $term (logic: $search_logic)");
-            $this->matched_product_ids = $cached_ids;
+
+            if (is_array($cached_data) && isset($cached_data['ids'])) {
+                $this->matched_product_ids = $cached_data['ids'];
+                $this->has_sku_matches = !empty($cached_data['has_sku_matches']);
+            } else {
+                $this->matched_product_ids = $cached_data;
+                $this->has_sku_matches = true;
+            }
             $from_cache = true;
         } else {
             $cache->debug("Miss for multi-word term: $term (logic: $search_logic)");
@@ -320,8 +344,8 @@ class Search_Query
 
         if (!$from_cache) {
             // Get product IDs based on search logic
-            if ($search_logic === 'or') {
-                // OR logic: products matching ANY term
+            if ($search_logic === 'or' || $search_logic === 'smart') {
+                // OR/Smart logic: products matching ANY term
                 $this->matched_product_ids = $this->get_union_product_ids($tokens);
             } else {
                 // AND logic (default): products matching ALL terms
@@ -329,11 +353,14 @@ class Search_Query
             }
 
             // Cache the result
-            $cache->set($cache_key, $this->matched_product_ids);
+            $cache->set($cache_key, array(
+                'ids' => $this->matched_product_ids,
+                'has_sku_matches' => $this->has_sku_matches
+            ));
         }
 
         // Apply ordering based on settings
-        $orderby_setting = get_option('trb_search_orderby', 'relevance');
+        $orderby_setting = $this->get_cached_option('trb_search_orderby', 'relevance');
         switch ($orderby_setting) {
             case 'popularity':
                 $args['meta_key'] = '_total_sales';
@@ -365,8 +392,8 @@ class Search_Query
         $this->is_multi_word_search = true;
         add_filter('posts_search', array($this, 'custom_search_filter'), 10, 2);
 
-        // Add join for SKU ordering if SKU search is enabled
-        if ($this->sku_search->is_enabled()) {
+        // Add join for SKU ordering if SKU search is enabled and there are matches
+        if ($this->sku_search->is_enabled() && $this->has_sku_matches) {
             add_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10, 2);
             add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
         }
@@ -377,10 +404,50 @@ class Search_Query
 
         // Cleanup filters
         remove_filter('posts_search', array($this, 'custom_search_filter'), 10);
-        if ($this->sku_search->is_enabled()) {
+        if ($this->sku_search->is_enabled() && $this->has_sku_matches) {
             remove_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10);
             remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
         }
+
+        // If no results and term is eligible for correction
+        if (!$query->have_posts() && strlen($term) >= 4) {
+            $corrector = \TRB_Product_Search\Typo_Corrector::get_instance();
+            $suggestion = $corrector->correct($term);
+
+            if ($suggestion) {
+                $this->corrected_term = $suggestion;
+                $new_tokens = $this->parse_search_terms($suggestion);
+
+                // Get new matching IDs for corrected terms
+                // We use union for Smart/OR, intersection for AND (following original logic)
+                if ($search_logic === 'or' || $search_logic === 'smart') {
+                    $this->matched_product_ids = $this->get_union_product_ids($new_tokens);
+                } else {
+                    $this->matched_product_ids = $this->get_intersecting_product_ids($new_tokens);
+                }
+
+                // Update filters for corrected search
+                $this->current_search_terms = $new_tokens;
+                $this->is_multi_word_search = true;
+                add_filter('posts_search', array($this, 'custom_search_filter'), 10, 2);
+
+                if ($this->sku_search->is_enabled() && $this->has_sku_matches) {
+                    add_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10, 2);
+                    add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
+                }
+
+                $args['s'] = $suggestion;
+                $query = new \WP_Query($args);
+
+                // Cleanup filters again
+                remove_filter('posts_search', array($this, 'custom_search_filter'), 10);
+                if ($this->sku_search->is_enabled() && $this->has_sku_matches) {
+                    remove_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10);
+                    remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
+                }
+            }
+        }
+
         $this->current_search_terms = array();
         $this->matched_product_ids = array();
         $this->is_multi_word_search = false;
@@ -406,9 +473,12 @@ class Search_Query
 
         // Get SKU matches (intersection handled by SKU_Search)
         $sku_ids = $this->sku_search->is_enabled() ? $this->sku_search->get_matching_product_ids($terms) : array();
+        if (!empty($sku_ids)) {
+            $this->has_sku_matches = true;
+        }
 
         // Get attribute matches (intersection handled by Attributes_Search)
-        $attr_ids = $this->attributes_search->is_enabled() ? $this->attributes_search->get_matching_product_ids($terms) : array();
+        $attr_ids = $this->attributes_search->get_matching_product_ids($terms);
 
         // Merge and return unique IDs
         return array_unique(array_merge($sku_ids, $attr_ids));
@@ -437,6 +507,9 @@ class Search_Query
             // Get SKU matches for this term
             if ($this->sku_search->is_enabled()) {
                 $sku_ids = $this->sku_search->get_matching_product_ids($term);
+                if (!empty($sku_ids)) {
+                    $this->has_sku_matches = true;
+                }
                 $all_ids = array_merge($all_ids, $sku_ids);
             }
 
@@ -518,7 +591,7 @@ class Search_Query
     private function build_multi_word_search_sql($wpdb, $wildcard)
     {
         // Get search logic from settings
-        $search_logic = get_option('trb_search_logic', 'and');
+        $search_logic = $this->get_cached_option('trb_search_logic', 'and');
 
         // Build conditions for each term
         // Each term can match in title (prefix or contains) OR content
@@ -538,8 +611,8 @@ class Search_Query
         }
 
         // Combine term conditions based on search logic
-        if ($search_logic === 'or') {
-            // OR logic: ANY term can match
+        if ($search_logic === 'or' || $search_logic === 'smart') {
+            // OR/Smart logic: ANY term can match
             $where_clause = '(' . implode(' OR ', $term_conditions) . ')';
         } else {
             // AND logic (default): ALL terms must match
@@ -589,7 +662,7 @@ class Search_Query
             return $orderby;
         }
 
-        $orderby_setting = get_option('trb_search_orderby', 'relevance');
+        $orderby_setting = $this->get_cached_option('trb_search_orderby', 'relevance');
 
         // For multi-word search with relevance ordering, use relevance scoring
         if ($this->is_multi_word_search && $orderby_setting === 'relevance' && !empty($this->current_search_terms)) {
@@ -663,6 +736,29 @@ class Search_Query
         $orderby_clauses[] = "{$wpdb->posts}.post_title ASC";
 
         return implode(', ', $orderby_clauses);
+    }
+
+    /**
+     * Get an option value with caching.
+     *
+     * @param string $option_name Option name.
+     * @param mixed  $default     Default value.
+     * @return mixed Option value.
+     */
+    private function get_cached_option($option_name, $default = '')
+    {
+        $cache = Cache_Manager::get_instance();
+        $cache_key = $cache->get_option_key($option_name);
+        $cached_value = $cache->get($cache_key);
+
+        if (false !== $cached_value) {
+            return $cached_value;
+        }
+
+        $value = get_option($option_name, $default);
+        $cache->set($cache_key, $value);
+
+        return $value;
     }
 
     /**
