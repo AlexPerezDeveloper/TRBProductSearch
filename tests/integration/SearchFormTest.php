@@ -77,6 +77,7 @@ class SearchFormTest extends TestCase {
         $this->assertStringContainsString('search-field', $output, 'Search field class should be present');
         $this->assertStringContainsString('search-submit', $output, 'Submit button class should be present');
         $this->assertStringContainsString('<form', $output, 'Form tag should be present');
+        $this->assertStringContainsString('action="http://example.com/"', $output, 'Form action should point to home URL');
     }
 
     /**
@@ -87,20 +88,22 @@ class SearchFormTest extends TestCase {
         $output = $search_form->render_shortcode(array());
 
         $this->assertStringContainsString('type="search"', $output, 'Input type should be search');
-        $this->assertStringContainsString('name="trb_q"', $output, 'Input name should be trb_q');
+        $this->assertStringContainsString('name="s"', $output, 'Input name should be s (WordPress standard)');
         $this->assertStringContainsString('id="trb_search_field"', $output, 'Input ID should be trb_search_field');
+        $this->assertStringContainsString('name="post_type"', $output, 'Post type hidden field should be present');
+        $this->assertStringContainsString('value="product"', $output, 'Post type value should be product');
     }
 
     /**
      * Test search form with query parameter.
      */
     public function test_search_form_with_query_param() {
-        $_GET['trb_q'] = 'wireless headphones';
+        $_GET['s'] = 'wireless headphones';
         $search_form = \TRB_Product_Search\Search_Form::get_instance();
         $output = $search_form->render_shortcode(array());
 
         $this->assertStringContainsString('wireless headphones', $output, 'Query value should be in output');
-        unset($_GET['trb_q']);
+        unset($_GET['s']);
     }
 
     /**

@@ -192,6 +192,12 @@ if (!function_exists('admin_url')) {
     }
 }
 
+if (!function_exists('home_url')) {
+    function home_url($path = '') {
+        return 'http://example.com/' . ltrim($path, '/');
+    }
+}
+
 if (!function_exists('current_user_can')) {
     function current_user_can($capability) {
         return true;
@@ -643,6 +649,25 @@ if (!function_exists('wp_reset_postdata')) {
 if (!function_exists('get_permalink')) {
     function get_permalink($post = 0) {
         return 'http://example.com/product/';
+    }
+}
+
+// Mock conditional functions for query testing
+if (!function_exists('is_admin')) {
+    function is_admin() {
+        return false;
+    }
+}
+
+if (!function_exists('is_search')) {
+    function is_search() {
+        return true;
+    }
+}
+
+if (!function_exists('is_main_query')) {
+    function is_main_query() {
+        return true;
     }
 }
 
