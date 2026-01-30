@@ -1,0 +1,35 @@
+# Composer dependencies
+/vendor/
+
+# PHPUnit
+.phpunit.result.cache
+phpunit.xml.dist
+
+# Node modules (si se usan en el futuro)
+node_modules/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# WordPress
+wp-content/
+
+# Logs
+*.log
+
+# Tests reports (si no se quieren versionar)
+/tests/reports/
+
+# Cache
+.cache/
+
+# Claude specs (archivos de trabajo internos)
+.claude/
