@@ -101,14 +101,9 @@ class AttributesSearchTest extends TestCase {
         TRB_Product_Search_Tests_Setup::set_option('trb_search_selected_attributes', array('pa_color'));
 
         global $wpdb;
-        // Mock get_col results sequence
-        // 1. Term IDs
-        // 2. Term Taxonomy IDs
-        // 3. Object IDs
+        // Mock get_col result - optimized version uses single JOIN query
         $wpdb->mock_results['get_col'] = array(
-            array(101), // Term IDs
-            array(202), // Term Taxonomy IDs
-            array(303, 404) // Product IDs
+            array(303, 404) // Product IDs from single query
         );
 
         $result = $attributes_search->get_matching_product_ids('red');
