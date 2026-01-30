@@ -96,33 +96,40 @@ class Attributes_Search
             return array();
         }
 
-        $selected_taxonomies = $this->get_selected_attributes();
-        if (empty($selected_taxonomies)) {
+        $selected_attributes = $this->get_selected_attributes();
+        if (empty($selected_attributes)) {
             return array();
         }
 
         global $wpdb;
 
+        // Ensure taxonomies have pa_ prefix
+        $taxonomies = array_map(function ($attr) {
+            return (strpos($attr, 'pa_') === 0) ? $attr : 'pa_' . $attr;
+        }, $selected_attributes);
+
         // Escapar taxonomías para uso seguro en IN clause
-        $taxonomies = array_map('esc_sql', $selected_taxonomies);
-        $taxonomies_placeholder = "'" . implode("','", $taxonomies) . "'";
+        $taxonomies_escaped = array_map('esc_sql', $taxonomies);
+        $taxonomies_placeholder = "'" . implode("','", $taxonomies_escaped) . "'";
         $wildcard = '%';
         $like_term = $wpdb->esc_like($term);
 
-        // Query única con 3 JOINs
+        // Query para encontrar IDs de productos y resolver variaciones a padres
         $sql = $wpdb->prepare(
-            "SELECT DISTINCT tr.object_id
+            "SELECT DISTINCT IF(p.post_type = 'product_variation', p.post_parent, p.ID) as product_id
             FROM {$wpdb->terms} t
             INNER JOIN {$wpdb->term_taxonomy} tt ON t.term_id = tt.term_id
             INNER JOIN {$wpdb->term_relationships} tr ON tt.term_taxonomy_id = tr.term_taxonomy_id
+            INNER JOIN {$wpdb->posts} p ON tr.object_id = p.ID
             WHERE tt.taxonomy IN ($taxonomies_placeholder)
-            AND t.name LIKE %s",
+            AND t.name LIKE %s
+            AND p.post_status = 'publish'",
             $wildcard . $like_term . $wildcard
         );
 
         $product_ids = $wpdb->get_col($sql);
 
-        return array_map('intval', $product_ids ?: array());
+        return array_unique(array_map('intval', $product_ids ?: array()));
     }
 
     /**
@@ -138,15 +145,20 @@ class Attributes_Search
             return array();
         }
 
+        // Ensure taxonomies have pa_ prefix
+        $taxonomies = array_map(function ($attr) {
+            return (strpos($attr, 'pa_') === 0) ? $attr : 'pa_' . $attr;
+        }, $selected);
+
         global $wpdb;
-        $placeholders = implode(',', array_fill(0, count($selected), '%s'));
+        $placeholders = implode(',', array_fill(0, count($taxonomies), '%s'));
         $query = $wpdb->prepare(
             "SELECT DISTINCT t.term_id, t.name, tt.taxonomy
             FROM {$wpdb->terms} t
             INNER JOIN {$wpdb->term_taxonomy} tt ON t.term_id = tt.term_id
             WHERE tt.taxonomy IN ($placeholders)
             AND t.name LIKE %s",
-            array_merge($selected, array('%' . $wpdb->esc_like($term) . '%'))
+            array_merge($taxonomies, array('%' . $wpdb->esc_like($term) . '%'))
         );
 
         return $wpdb->get_results($query);
