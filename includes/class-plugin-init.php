@@ -21,6 +21,13 @@ class Plugin_Init
     private static $instance = null;
 
     /**
+     * Store extended product IDs for use in filters.
+     *
+     * @var array
+     */
+    private $extended_product_ids = array();
+
+    /**
      * Get the instance of the class.
      *
      * @return Plugin_Init
@@ -139,13 +146,6 @@ class Plugin_Init
             add_filter('posts_where', array($this, 'extend_search_where_clause'), 10, 2);
         }
     }
-
-    /**
-     * Store extended product IDs for use in filters.
-     *
-     * @var array
-     */
-    private $extended_product_ids = array();
 
     /**
      * Get product IDs from extended search (SKU and attributes).
