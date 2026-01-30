@@ -74,6 +74,7 @@ class Settings
         register_setting('trb_product_search_options', 'trb_search_attributes_enabled', array('sanitize_callback' => array($this, 'sanitize_checkbox'), 'default' => '0'));
         register_setting('trb_product_search_options', 'trb_search_selected_attributes', array('sanitize_callback' => array($this, 'sanitize_attributes'), 'default' => array()));
         register_setting('trb_product_search_options', 'trb_search_orderby', array('sanitize_callback' => 'sanitize_text_field', 'default' => 'relevance'));
+        register_setting('trb_product_search_options', 'trb_search_logic', array('sanitize_callback' => array($this, 'sanitize_search_logic'), 'default' => 'and'));
 
         // Analytics settings
         register_setting('trb_product_search_options', 'trb_analytics_enabled', array('sanitize_callback' => array($this, 'sanitize_checkbox'), 'default' => '1'));
@@ -115,6 +116,14 @@ class Settings
             'trb_search_orderby',
             __('Order Results By', 'trb-product-search'),
             array($this, 'render_orderby_field'),
+            'trb-product-search',
+            'trb_search_general'
+        );
+
+        add_settings_field(
+            'trb_search_logic',
+            __('Logic for multi-word searches', 'trb-product-search'),
+            array($this, 'render_search_logic_field'),
             'trb-product-search',
             'trb_search_general'
         );
@@ -305,6 +314,43 @@ class Settings
         </select>
         <p class="description">
             <?php esc_html_e('Choose how you want search results to be ordered by default.', 'trb-product-search'); ?>
+        </p>
+        <?php
+    }
+
+    /**
+     * Sanitize search logic input.
+     *
+     * @param string $input Raw input.
+     * @return string Sanitized input ('and' or 'or').
+     */
+    public function sanitize_search_logic($input)
+    {
+        $valid_values = array('and', 'or');
+        $sanitized = sanitize_text_field($input);
+        return in_array($sanitized, $valid_values, true) ? $sanitized : 'and';
+    }
+
+    /**
+     * Render search logic radio buttons field.
+     */
+    public function render_search_logic_field()
+    {
+        $logic = get_option('trb_search_logic', 'and');
+        ?>
+        <fieldset>
+            <legend class="screen-reader-text"><?php esc_html_e('Logic for multi-word searches', 'trb-product-search'); ?></legend>
+            <label style="display: block; margin-bottom: 8px;">
+                <input type="radio" name="trb_search_logic" value="and" <?php checked('and', $logic); ?>>
+                <?php esc_html_e('AND (all words required)', 'trb-product-search'); ?>
+            </label>
+            <label style="display: block; margin-bottom: 8px;">
+                <input type="radio" name="trb_search_logic" value="or" <?php checked('or', $logic); ?>>
+                <?php esc_html_e('OR (any word sufficient)', 'trb-product-search'); ?>
+            </label>
+        </fieldset>
+        <p class="description">
+            <?php esc_html_e('Choose how multiple search words are combined. AND requires all words to match (more precise). OR matches any word (more results).', 'trb-product-search'); ?>
         </p>
         <?php
     }

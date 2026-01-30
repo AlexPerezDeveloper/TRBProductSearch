@@ -246,6 +246,26 @@ if (!function_exists('submit_button')) {
     }
 }
 
+if (!function_exists('checked')) {
+    function checked($checked, $current = true, $echo = true) {
+        $result = $checked === $current ? ' checked="checked"' : '';
+        if ($echo) {
+            echo $result;
+        }
+        return $result;
+    }
+}
+
+if (!function_exists('selected')) {
+    function selected($selected, $current = true, $echo = true) {
+        $result = $selected === $current ? ' selected="selected"' : '';
+        if ($echo) {
+            echo $result;
+        }
+        return $result;
+    }
+}
+
 if (!function_exists('add_shortcode')) {
     function add_shortcode($tag, $callback) {
         return true;
@@ -287,6 +307,38 @@ if (!function_exists('check_ajax_referer')) {
     }
 }
 
+if (!class_exists('WP_Error')) {
+    class WP_Error {
+        private $code;
+        private $message;
+        private $data;
+
+        public function __construct($code = '', $message = '', $data = '') {
+            $this->code = $code;
+            $this->message = $message;
+            $this->data = $data;
+        }
+
+        public function get_error_code() {
+            return $this->code;
+        }
+
+        public function get_error_message() {
+            return $this->message;
+        }
+
+        public function get_error_data() {
+            return $this->data;
+        }
+    }
+}
+
+if (!function_exists('is_wp_error')) {
+    function is_wp_error($thing) {
+        return $thing instanceof WP_Error;
+    }
+}
+
 if (!function_exists('remove_accents')) {
     function remove_accents($str) {
         if (!preg_match('/[\x80-\xff]/', $str)) {
@@ -301,6 +353,45 @@ if (!function_exists('remove_accents')) {
             'ä'=>'a', 'ë'=>'e', 'ï'=>'i', 'ö'=>'o', 'ü'=>'u',
         );
         return strtr($str, $chars);
+    }
+}
+
+// Mock cache-related functions
+if (!function_exists('wp_using_ext_object_cache')) {
+    function wp_using_ext_object_cache() {
+        return false;
+    }
+}
+
+if (!function_exists('get_transient')) {
+    function get_transient($transient) {
+        global $_test_transients;
+        if (!isset($_test_transients)) {
+            $_test_transients = array();
+        }
+        return isset($_test_transients[$transient]) ? $_test_transients[$transient] : false;
+    }
+}
+
+if (!function_exists('set_transient')) {
+    function set_transient($transient, $value, $expiration = 0) {
+        global $_test_transients;
+        if (!isset($_test_transients)) {
+            $_test_transients = array();
+        }
+        $_test_transients[$transient] = $value;
+        return true;
+    }
+}
+
+if (!function_exists('delete_transient')) {
+    function delete_transient($transient) {
+        global $_test_transients;
+        if (isset($_test_transients[$transient])) {
+            unset($_test_transients[$transient]);
+            return true;
+        }
+        return false;
     }
 }
 
@@ -564,6 +655,10 @@ if (file_exists(__DIR__ . '/../includes/class-plugin-init.php')) {
     require_once __DIR__ . '/../includes/class-ajax-handler.php';
     require_once __DIR__ . '/../includes/class-settings.php';
     require_once __DIR__ . '/../includes/class-typo-corrector.php';
+    require_once __DIR__ . '/../includes/class-sku-search.php';
+    require_once __DIR__ . '/../includes/class-attributes-search.php';
+    require_once __DIR__ . '/../includes/class-cache-manager.php';
+    require_once __DIR__ . '/../includes/class-search-analytics.php';
 }
 
 echo "TRB Product Search integration tests bootstrapped successfully." . PHP_EOL;
