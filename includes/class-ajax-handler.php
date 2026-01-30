@@ -55,6 +55,8 @@ class Ajax_Handler
      */
     public function handle_search()
     {
+        nocache_headers();
+        error_log("TRB Search: AJAX handle_search called for term: " . (isset($_GET['term']) ? $_GET['term'] : 'EMPTY'));
         if (!check_ajax_referer('trb_search_nonce', 'security', false)) {
             wp_send_json_error(array('message' => __('Session expired. Please refresh.', 'trb-product-search')));
             return;
@@ -80,11 +82,13 @@ class Ajax_Handler
         $cache_key = 'html_result_' . md5($term . $orderby);
         $cached_html = $cache->get($cache_key);
 
+        /*
         if (false !== $cached_html) {
             $cache->debug("Ajax HTML Hit for term: $term");
             wp_send_json_success(array('html' => $cached_html));
             return;
         }
+        */
 
         $cache->debug("Ajax HTML Miss for term: $term");
 
@@ -142,10 +146,12 @@ class Ajax_Handler
         $html = ob_get_clean();
 
         // Cache the valid HTML result
+        /*
         if (isset($html) && !empty($html)) {
             // Cache for 1 hour
             $cache->set($cache_key, $html, 3600);
         }
+        */
 
         wp_reset_postdata();
 

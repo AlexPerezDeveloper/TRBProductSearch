@@ -50,11 +50,8 @@ class Search_Analytics
      */
     public function init()
     {
-        // Ensure table exists (extra safety if activation hook fails)
-        if (is_admin() && !get_option('trb_analytics_table_created')) {
-            self::create_table();
-            update_option('trb_analytics_table_created', time());
-        }
+        // Force check if table exists to prevent missing table issues
+        self::create_table();
 
         // Schedule cleanup of old logs
         if (!wp_next_scheduled('trb_cleanup_search_logs')) {
@@ -100,16 +97,7 @@ class Search_Analytics
      */
     public function log_search($term, $results_count, $has_results)
     {
-        // Check if analytics is enabled
-        if (!get_option('trb_analytics_enabled', true)) {
-            return;
-        }
-
-        // Check if we should track guests
-        $track_guests = get_option('trb_analytics_track_guests', true);
-        if (!$track_guests && !is_user_logged_in()) {
-            return;
-        }
+        error_log("TRB Search: FORCE logging search for '$term' (results: $results_count)");
 
         global $wpdb;
         $table_name = $wpdb->prefix . self::TABLE_NAME;
@@ -129,6 +117,12 @@ class Search_Analytics
             ),
             array('%s', '%d', '%d', '%d', '%s', '%s')
         );
+
+        if ($wpdb->last_error) {
+            error_log('TRB Search Analytics DB Error: ' . $wpdb->last_error);
+        } else {
+            error_log("TRB Search Analytics: Logged search for '$term' successfully. ID: " . $wpdb->insert_id);
+        }
     }
 
     /**
@@ -142,7 +136,8 @@ class Search_Analytics
     {
         global $wpdb;
         $table_name = $wpdb->prefix . self::TABLE_NAME;
-        $date_threshold = date('Y-m-d H:i:s', strtotime("-$days days"));
+        $now = current_time('mysql');
+        $date_threshold = date('Y-m-d H:i:s', strtotime("-$days days", strtotime($now)));
 
         $results = $wpdb->get_results($wpdb->prepare(
             "SELECT search_term, COUNT(*) as search_count, 
@@ -171,7 +166,8 @@ class Search_Analytics
     {
         global $wpdb;
         $table_name = $wpdb->prefix . self::TABLE_NAME;
-        $date_threshold = date('Y-m-d H:i:s', strtotime("-$days days"));
+        $now = current_time('mysql');
+        $date_threshold = date('Y-m-d H:i:s', strtotime("-$days days", strtotime($now)));
 
         $results = $wpdb->get_results($wpdb->prepare(
             "SELECT search_term, COUNT(*) as search_count
@@ -197,7 +193,8 @@ class Search_Analytics
     {
         global $wpdb;
         $table_name = $wpdb->prefix . self::TABLE_NAME;
-        $date_threshold = date('Y-m-d H:i:s', strtotime("-$days days"));
+        $now = current_time('mysql');
+        $date_threshold = date('Y-m-d H:i:s', strtotime("-$days days", strtotime($now)));
 
         $stats = $wpdb->get_row($wpdb->prepare(
             "SELECT 
@@ -231,7 +228,8 @@ class Search_Analytics
     {
         global $wpdb;
         $table_name = $wpdb->prefix . self::TABLE_NAME;
-        $date_threshold = date('Y-m-d H:i:s', strtotime("-$days days"));
+        $now = current_time('mysql');
+        $date_threshold = date('Y-m-d H:i:s', strtotime("-$days days", strtotime($now)));
 
         $results = $wpdb->get_results($wpdb->prepare(
             "SELECT 
@@ -271,7 +269,7 @@ class Search_Analytics
      *
      * @return string
      */
-    private function get_session_id()
+    public function get_session_id()
     {
         if (!isset($_COOKIE['trb_session_id'])) {
             $session_id = wp_generate_password(32, false);

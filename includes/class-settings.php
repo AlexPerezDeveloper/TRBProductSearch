@@ -113,6 +113,22 @@ class Settings
         );
 
         add_settings_field(
+            'trb_analytics_enabled',
+            __('Enable Analytics', 'trb-product-search'),
+            array($this, 'render_analytics_checkbox'),
+            'trb-product-search',
+            'trb_search_general'
+        );
+
+        add_settings_field(
+            'trb_analytics_track_guests',
+            __('Track Guest Searches', 'trb-product-search'),
+            array($this, 'render_track_guests_checkbox'),
+            'trb-product-search',
+            'trb_search_general'
+        );
+
+        add_settings_field(
             'trb_search_orderby',
             __('Order Results By', 'trb-product-search'),
             array($this, 'render_orderby_field'),
@@ -302,13 +318,17 @@ class Settings
         ?>
         <select name="trb_search_orderby">
             <option value="relevance" <?php selected($orderby, 'relevance'); ?>>
-                <?php esc_html_e('Relevance', 'trb-product-search'); ?></option>
+                <?php esc_html_e('Relevance', 'trb-product-search'); ?>
+            </option>
             <option value="popularity" <?php selected($orderby, 'popularity'); ?>>
-                <?php esc_html_e('Popularity (Sales)', 'trb-product-search'); ?></option>
+                <?php esc_html_e('Popularity (Sales)', 'trb-product-search'); ?>
+            </option>
             <option value="price_asc" <?php selected($orderby, 'price_asc'); ?>>
-                <?php esc_html_e('Price: Low to High', 'trb-product-search'); ?></option>
+                <?php esc_html_e('Price: Low to High', 'trb-product-search'); ?>
+            </option>
             <option value="price_desc" <?php selected($orderby, 'price_desc'); ?>>
-                <?php esc_html_e('Price: High to Low', 'trb-product-search'); ?></option>
+                <?php esc_html_e('Price: High to Low', 'trb-product-search'); ?>
+            </option>
             <option value="date" <?php selected($orderby, 'date'); ?>><?php esc_html_e('Newest First', 'trb-product-search'); ?>
             </option>
         </select>
@@ -319,39 +339,30 @@ class Settings
     }
 
     /**
-     * Sanitize search logic input.
-     *
-     * @param string $input Raw input.
-     * @return string Sanitized input ('and' or 'or').
+     * Render analytics enable checkbox.
      */
-    public function sanitize_search_logic($input)
+    public function render_analytics_checkbox()
     {
-        $valid_values = array('and', 'or');
-        $sanitized = sanitize_text_field($input);
-        return in_array($sanitized, $valid_values, true) ? $sanitized : 'and';
+        $enabled = get_option('trb_analytics_enabled', '1');
+        ?>
+        <label>
+            <input type="checkbox" name="trb_analytics_enabled" value="1" <?php checked('1', $enabled); ?>>
+            <?php esc_html_e('Enable search analytics tracking', 'trb-product-search'); ?>
+        </label>
+        <?php
     }
 
     /**
-     * Render search logic radio buttons field.
+     * Render track guests checkbox.
      */
-    public function render_search_logic_field()
+    public function render_track_guests_checkbox()
     {
-        $logic = get_option('trb_search_logic', 'and');
+        $track = get_option('trb_analytics_track_guests', '1');
         ?>
-        <fieldset>
-            <legend class="screen-reader-text"><?php esc_html_e('Logic for multi-word searches', 'trb-product-search'); ?></legend>
-            <label style="display: block; margin-bottom: 8px;">
-                <input type="radio" name="trb_search_logic" value="and" <?php checked('and', $logic); ?>>
-                <?php esc_html_e('AND (all words required)', 'trb-product-search'); ?>
-            </label>
-            <label style="display: block; margin-bottom: 8px;">
-                <input type="radio" name="trb_search_logic" value="or" <?php checked('or', $logic); ?>>
-                <?php esc_html_e('OR (any word sufficient)', 'trb-product-search'); ?>
-            </label>
-        </fieldset>
-        <p class="description">
-            <?php esc_html_e('Choose how multiple search words are combined. AND requires all words to match (more precise). OR matches any word (more results).', 'trb-product-search'); ?>
-        </p>
+        <label>
+            <input type="checkbox" name="trb_analytics_track_guests" value="1" <?php checked('1', $track); ?>>
+            <?php esc_html_e('Track and log searches from non-logged in users', 'trb-product-search'); ?>
+        </label>
         <?php
     }
 

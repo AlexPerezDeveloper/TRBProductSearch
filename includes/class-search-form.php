@@ -91,8 +91,8 @@ class Search_Form
                 <label for="trb_search_field"
                     class="screen-reader-text"><?php esc_html_e('Search for:', 'trb-product-search'); ?></label>
                 <input type="search" id="trb_search_field" class="search-field"
-                    placeholder="<?php echo esc_attr($atts['placeholder']); ?>"
-                    value="<?php echo esc_attr($search_query); ?>" name="trb_q" />
+                    placeholder="<?php echo esc_attr($atts['placeholder']); ?>" value="<?php echo esc_attr($search_query); ?>"
+                    name="trb_q" />
                 <button type="submit" class="search-submit"><?php esc_html_e('Search', 'trb-product-search'); ?></button>
             </form>
         </div>
@@ -110,6 +110,12 @@ class Search_Form
         if (class_exists('\TRB_Product_Search\Search_Query') && class_exists('\TRB_Product_Search\Search_Results')) {
             $query_handler = new Search_Query();
             $results = $query_handler->search($term);
+
+            // Log search analytics
+            if (class_exists('\TRB_Product_Search\Search_Analytics')) {
+                $analytics = Search_Analytics::get_instance();
+                $analytics->log_search($term, $results->post_count, $results->have_posts());
+            }
 
             // Get correction info if any
             $correction_info = $query_handler->get_correction_info();
