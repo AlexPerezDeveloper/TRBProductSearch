@@ -136,6 +136,31 @@ class Search_Query
             $cache->set($cache_key, $this->matched_product_ids);
         }
 
+        // Apply ordering based on settings
+        $orderby_setting = get_option('trb_search_orderby', 'relevance');
+        switch ($orderby_setting) {
+            case 'popularity':
+                $args['meta_key'] = '_total_sales';
+                $args['orderby'] = 'meta_value_num';
+                $args['order'] = 'DESC';
+                break;
+            case 'price_asc':
+                $args['meta_key'] = '_price';
+                $args['orderby'] = 'meta_value_num';
+                $args['order'] = 'ASC';
+                break;
+            case 'price_desc':
+                $args['meta_key'] = '_price';
+                $args['orderby'] = 'meta_value_num';
+                $args['order'] = 'DESC';
+                break;
+            case 'date':
+                $args['orderby'] = 'date';
+                $args['order'] = 'DESC';
+                break;
+            // relevance is handled by the priority_orderby filter
+        }
+
         // Allow modifying args
         $args = apply_filters('trb_product_search_args', $args, $term);
 
@@ -331,6 +356,17 @@ class Search_Query
         // Use the meta_value from the joined postmeta table
         // The JOIN is added in the search() method
         $sku_priority = "IF(mt_sku.meta_value = '{$term}', 1, 0) DESC";
+
+        $orderby_setting = get_option('trb_search_orderby', 'relevance');
+
+        if ($orderby_setting === 'relevance') {
+            return "{$sku_priority}, {$wpdb->posts}.post_title ASC";
+        }
+
+        // For other orderings, prepend SKU priority to the existing orderby string
+        if (!empty($orderby)) {
+            return "{$sku_priority}, {$orderby}";
+        }
 
         return "{$sku_priority}, {$wpdb->posts}.post_title ASC";
     }
