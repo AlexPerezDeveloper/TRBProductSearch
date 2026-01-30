@@ -112,6 +112,22 @@ class Settings
         );
 
         add_settings_field(
+            'trb_analytics_enabled',
+            __('Enable Analytics', 'trb-product-search'),
+            array($this, 'render_analytics_checkbox'),
+            'trb-product-search',
+            'trb_search_general'
+        );
+
+        add_settings_field(
+            'trb_analytics_track_guests',
+            __('Track Guest Searches', 'trb-product-search'),
+            array($this, 'render_track_guests_checkbox'),
+            'trb-product-search',
+            'trb_search_general'
+        );
+
+        add_settings_field(
             'trb_search_orderby',
             __('Order Results By', 'trb-product-search'),
             array($this, 'render_orderby_field'),
@@ -293,19 +309,51 @@ class Settings
         ?>
         <select name="trb_search_orderby">
             <option value="relevance" <?php selected($orderby, 'relevance'); ?>>
-                <?php esc_html_e('Relevance', 'trb-product-search'); ?></option>
+                <?php esc_html_e('Relevance', 'trb-product-search'); ?>
+            </option>
             <option value="popularity" <?php selected($orderby, 'popularity'); ?>>
-                <?php esc_html_e('Popularity (Sales)', 'trb-product-search'); ?></option>
+                <?php esc_html_e('Popularity (Sales)', 'trb-product-search'); ?>
+            </option>
             <option value="price_asc" <?php selected($orderby, 'price_asc'); ?>>
-                <?php esc_html_e('Price: Low to High', 'trb-product-search'); ?></option>
+                <?php esc_html_e('Price: Low to High', 'trb-product-search'); ?>
+            </option>
             <option value="price_desc" <?php selected($orderby, 'price_desc'); ?>>
-                <?php esc_html_e('Price: High to Low', 'trb-product-search'); ?></option>
+                <?php esc_html_e('Price: High to Low', 'trb-product-search'); ?>
+            </option>
             <option value="date" <?php selected($orderby, 'date'); ?>><?php esc_html_e('Newest First', 'trb-product-search'); ?>
             </option>
         </select>
         <p class="description">
             <?php esc_html_e('Choose how you want search results to be ordered by default.', 'trb-product-search'); ?>
         </p>
+        <?php
+    }
+
+    /**
+     * Render analytics enable checkbox.
+     */
+    public function render_analytics_checkbox()
+    {
+        $enabled = get_option('trb_analytics_enabled', '1');
+        ?>
+        <label>
+            <input type="checkbox" name="trb_analytics_enabled" value="1" <?php checked('1', $enabled); ?>>
+            <?php esc_html_e('Enable search analytics tracking', 'trb-product-search'); ?>
+        </label>
+        <?php
+    }
+
+    /**
+     * Render track guests checkbox.
+     */
+    public function render_track_guests_checkbox()
+    {
+        $track = get_option('trb_analytics_track_guests', '1');
+        ?>
+        <label>
+            <input type="checkbox" name="trb_analytics_track_guests" value="1" <?php checked('1', $track); ?>>
+            <?php esc_html_e('Track and log searches from non-logged in users', 'trb-product-search'); ?>
+        </label>
         <?php
     }
 
