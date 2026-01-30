@@ -50,6 +50,12 @@ class Search_Analytics
      */
     public function init()
     {
+        // Ensure table exists (extra safety if activation hook fails)
+        if (is_admin() && !get_option('trb_analytics_table_created')) {
+            self::create_table();
+            update_option('trb_analytics_table_created', time());
+        }
+
         // Schedule cleanup of old logs
         if (!wp_next_scheduled('trb_cleanup_search_logs')) {
             wp_schedule_event(time(), 'daily', 'trb_cleanup_search_logs');
@@ -197,15 +203,22 @@ class Search_Analytics
             "SELECT 
                 COUNT(*) as total_searches,
                 COUNT(DISTINCT search_term) as unique_terms,
-                SUM(CASE WHEN has_results = 1 THEN 1 ELSE 0 END) as searches_with_results,
-                SUM(CASE WHEN has_results = 0 THEN 1 ELSE 0 END) as searches_without_results,
-                AVG(results_count) as avg_results_per_search
+                IFNULL(SUM(CASE WHEN has_results = 1 THEN 1 ELSE 0 END), 0) as searches_with_results,
+                IFNULL(SUM(CASE WHEN has_results = 0 THEN 1 ELSE 0 END), 0) as searches_without_results,
+                IFNULL(AVG(results_count), 0) as avg_results_per_search
              FROM $table_name
              WHERE created_at >= %s",
             $date_threshold
         ), ARRAY_A);
 
-        return $stats;
+        // Ensure all values are numeric to avoid PHP 8.1+ deprecation warnings
+        return array(
+            'total_searches' => (int) ($stats['total_searches'] ?? 0),
+            'unique_terms' => (int) ($stats['unique_terms'] ?? 0),
+            'searches_with_results' => (int) ($stats['searches_with_results'] ?? 0),
+            'searches_without_results' => (int) ($stats['searches_without_results'] ?? 0),
+            'avg_results_per_search' => (float) ($stats['avg_results_per_search'] ?? 0),
+        );
     }
 
     /**

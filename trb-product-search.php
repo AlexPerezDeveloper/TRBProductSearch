@@ -31,3 +31,18 @@ function trb_product_search_init()
     \TRB_Product_Search\Plugin_Init::get_instance()->init();
 }
 add_action('plugins_loaded', 'trb_product_search_init', 9); // Priority 9 to be ready for other plugins at 10 if needed, though check happens inside init.
+
+// Activation hook.
+function trb_product_search_activate()
+{
+    // Load the Search_Analytics class
+    require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-search-analytics.php';
+
+    // Create analytics table
+    \TRB_Product_Search\Search_Analytics::create_table();
+
+    // Load Plugin_Init to run activation routine
+    require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-plugin-init.php';
+    \TRB_Product_Search\Plugin_Init::get_instance()->activation_routine();
+}
+register_activation_hook(__FILE__, 'trb_product_search_activate');
