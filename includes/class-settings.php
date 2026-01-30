@@ -227,6 +227,17 @@ class Settings
     }
 
     /**
+     * Sanitize search logic.
+     *
+     * @param string $input Raw input.
+     * @return string Sanitized input ('and' or 'or').
+     */
+    public function sanitize_search_logic($input)
+    {
+        return in_array($input, array('and', 'or', 'smart')) ? $input : 'and';
+    }
+
+    /**
      * Render synonyms textarea.
      */
     public function render_synonyms_field()
@@ -334,6 +345,30 @@ class Settings
         </select>
         <p class="description">
             <?php esc_html_e('Choose how you want search results to be ordered by default.', 'trb-product-search'); ?>
+        </p>
+        <?php
+    }
+
+    /**
+     * Render search logic field.
+     */
+    public function render_search_logic_field()
+    {
+        $logic = get_option('trb_search_logic', 'and');
+        ?>
+        <select name="trb_search_logic">
+            <option value="smart" <?php selected($logic, 'smart'); ?>>
+                <?php esc_html_e('Smart Search (Recommended) - OR with AND prioritization', 'trb-product-search'); ?>
+            </option>
+            <option value="and" <?php selected($logic, 'and'); ?>>
+                <?php esc_html_e('AND - Products must contain all words', 'trb-product-search'); ?>
+            </option>
+            <option value="or" <?php selected($logic, 'or'); ?>>
+                <?php esc_html_e('OR - Products can contain any of the words', 'trb-product-search'); ?>
+            </option>
+        </select>
+        <p class="description">
+            <?php esc_html_e('Smart Search uses flexible matching but ensures the most relevant results (containing all terms) appear first.', 'trb-product-search'); ?>
         </p>
         <?php
     }
