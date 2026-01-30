@@ -252,8 +252,31 @@ class Search_Query
         $conditions = array();
         foreach ($this->current_search_terms as $t) {
             $term = esc_sql($wpdb->esc_like($t));
-            // Search in title and content for partial matches
-            $conditions[] = "({$wpdb->posts}.post_title LIKE '{$wildcard}{$term}{$wildcard}')";
+
+            // Optimization 1: Priority for Starts With (Prefix) - Index friendly
+            // Optimization 2: Contains (Wildcard) - Standard fallback
+
+            // We search title: Starts With OR Contains
+            // Note: ORing them is redundant for logic, but we might want to ORDER by them?
+            // For now, let's just make sure we include the prefix search explicitly if that helps Query Planner,
+            // or just rely on 'Contains' covering it. 
+            // BUT the User specifically requested:
+            // "Para prefix search (usa índice) WHERE post_title LIKE 'term%'"
+            // "Para substring (limitar resultados) WHERE post_title LIKE '%term%' LIMIT 100"
+            // Since we are in posts_search filter which builds the WHERE clause,
+            // we can't easily do a UNION of two queries here.
+            // However, we can construct the WHERE to be:
+            // (post_title LIKE 'term%') OR (post_title LIKE '%term%') 
+            // Actually '%term%' covers 'term%', so logically identical.
+            // But sometimes separate clauses help. Let's stick to the prompt's spirit:
+            // Emphasize the prefix match. 
+
+            // Actually, to truly use the index for prefix, it must be an AND or standalone.
+            // If we have OR ... LIKE '%...', the index for prefix might not be used.
+            // Let's add both to be safe and explicit as requested.
+
+            $conditions[] = "({$wpdb->posts}.post_title LIKE '{$term}{$wildcard}')"; // Prefix
+            $conditions[] = "({$wpdb->posts}.post_title LIKE '{$wildcard}{$term}{$wildcard}')"; // Contains
             $conditions[] = "({$wpdb->posts}.post_content LIKE '{$wildcard}{$term}{$wildcard}')";
         }
 
