@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" tests="13" assertions="27" errors="0" warnings="0" failures="0" skipped="0" time="0.002266">
+    <testcase name="test_render_shortcode_custom_placeholder" class="SearchFormTest" classname="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" line="59" assertions="2" time="0.001562"/>
+    <testcase name="test_multiple_shortcode_instances" class="SearchFormTest" classname="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" line="145" assertions="2" time="0.000037"/>
+    <testcase name="test_form_button_text" class="SearchFormTest" classname="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" line="135" assertions="1" time="0.000027"/>
+    <testcase name="test_search_form_input_attributes" class="SearchFormTest" classname="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" line="86" assertions="5" time="0.000028"/>
+    <testcase name="test_search_form_html_structure" class="SearchFormTest" classname="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" line="70" assertions="6" time="0.000028"/>
+    <testcase name="test_render_shortcode_default_attributes" class="SearchFormTest" classname="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" line="48" assertions="2" time="0.000284"/>
+    <testcase name="test_shortcode_with_empty_attributes" class="SearchFormTest" classname="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" line="124" assertions="2" time="0.000031"/>
+    <testcase name="test_search_form_class_exists" class="SearchFormTest" classname="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" line="15" assertions="1" time="0.000059"/>
+    <testcase name="test_search_form_with_query_param" class="SearchFormTest" classname="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" line="100" assertions="1" time="0.000028"/>
+    <testcase name="test_accessibility_features" class="SearchFormTest" classname="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" line="112" assertions="2" time="0.000026"/>
+    <testcase name="test_search_form_singleton" class="SearchFormTest" classname="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" line="22" assertions="1" time="0.000110"/>
+    <testcase name="test_render_shortcode_method_exists" class="SearchFormTest" classname="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" line="40" assertions="1" time="0.000021"/>
+    <testcase name="test_register_shortcode_method_exists" class="SearchFormTest" classname="SearchFormTest" file="/home/raskardev/proyectos/trb/TRBProductSearch/tests/integration/SearchFormTest.php" line="32" assertions="1" time="0.000025"/>
+  </testsuite>
+</testsuites>

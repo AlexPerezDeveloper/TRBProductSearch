@@ -11,8 +11,12 @@ jQuery(document).ready(function ($) {
   }
   var dropdown = $(".trb-search-dropdown");
 
+  // Track if user selected an item from dropdown
+  var itemSelected = false;
+
   searchInput.on("input", function () {
     var term = $(this).val();
+    itemSelected = false;
 
     clearTimeout(typingTimer);
 
@@ -25,23 +29,30 @@ jQuery(document).ready(function ($) {
     }
   });
 
-  // Handle form submission for full page search
+  // Handle form submission - redirects to WooCommerce search page
   searchForm.on("submit", function (e) {
     var term = searchInput.val().trim();
+
+    // If user selected an item from dropdown, let the link handle it
+    if (itemSelected) {
+      return true;
+    }
+
+    // Validate minimum characters
     if (term.length < minChars) {
       e.preventDefault();
       dropdown
         .show()
         .html(
-          '<div class="trb-no-results">Minimum ' +
-            minChars +
-            " characters required</div>",
+          '<div class="trb-no-results">' +
+            trb_search_vars.strings.min_chars.replace("%d", minChars) +
+            "</div>",
         );
       return false;
     }
 
-    // Let the form submit normally to show full results page
-    // The form will add ?trb_q=term to the URL
+    // Form will submit to home_url('/?s=term&post_type=product')
+    // This redirects to the native WooCommerce search results page
     return true;
   });
 
@@ -55,11 +66,26 @@ jQuery(document).ready(function ($) {
         security: trb_search_vars.nonce,
       },
       beforeSend: function () {
-        dropdown.show().html('<div class="trb-loading">Loading...</div>');
+        dropdown.show().html('<div class="trb-loading">' + trb_search_vars.strings.loading + "</div>");
       },
       success: function (response) {
         if (response.success) {
-          dropdown.html(response.data.html);
+          var html = response.data.html;
+
+          // Add "View all results" link at the bottom
+          var viewAllUrl =
+            trb_search_vars.home_url + "?s=" + encodeURIComponent(term) + "&post_type=product";
+          var viewAllLink =
+            '<li class="trb-view-all"><a href="' +
+            viewAllUrl +
+            '">' +
+            trb_search_vars.strings.view_all +
+            "</a></li>";
+
+          // Insert before closing </ul>
+          html = html.replace("</ul>", viewAllLink + "</ul>");
+
+          dropdown.html(html);
         } else {
           dropdown.html(
             '<div class="trb-no-results">' + response.data.message + "</div>",
@@ -75,11 +101,16 @@ jQuery(document).ready(function ($) {
           statusCode: xhr.status,
         });
         dropdown.html(
-          '<div class="trb-error">Error fetching results. Please try again.</div>',
+          '<div class="trb-error">' + trb_search_vars.strings.error + "</div>",
         );
       },
     });
   }
+
+  // Handle click on dropdown items
+  dropdown.on("click", "a", function () {
+    itemSelected = true;
+  });
 
   // Close dropdown when clicking outside
   $(document).on("click", function (e) {

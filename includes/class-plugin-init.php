@@ -102,7 +102,116 @@ class Plugin_Init
     {
         add_action('init', array($this, 'register_shortcodes'));
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
+        add_action('pre_get_posts', array($this, 'extend_product_search'));
         register_activation_hook(TRB_PRODUCT_SEARCH_FILE, array($this, 'activation_routine'));
+    }
+
+    /**
+     * Extend the native WooCommerce product search to include SKU and attributes.
+     *
+     * Hooks into pre_get_posts to modify the search query on product search pages.
+     *
+     * @param \WP_Query $query The WordPress query object.
+     */
+    public function extend_product_search($query)
+    {
+        // Only modify frontend search queries for products
+        if (is_admin() || !$query->is_search() || !$query->is_main_query()) {
+            return;
+        }
+
+        // Only modify product searches
+        if ($query->get('post_type') !== 'product') {
+            return;
+        }
+
+        $search_term = $query->get('s');
+        if (empty($search_term)) {
+            return;
+        }
+
+        // Get additional product IDs from SKU and attributes search
+        $product_ids = $this->get_extended_search_results($search_term);
+
+        if (!empty($product_ids)) {
+            // Store the product IDs to use in posts_where filter
+            $this->extended_product_ids = $product_ids;
+            add_filter('posts_where', array($this, 'extend_search_where_clause'), 10, 2);
+        }
+    }
+
+    /**
+     * Store extended product IDs for use in filters.
+     *
+     * @var array
+     */
+    private $extended_product_ids = array();
+
+    /**
+     * Get product IDs from extended search (SKU and attributes).
+     *
+     * @param string $term Search term.
+     * @return array Array of product IDs.
+     */
+    private function get_extended_search_results($term)
+    {
+        $product_ids = array();
+
+        // Search by SKU if enabled
+        if (class_exists('\TRB_Product_Search\SKU_Search')) {
+            $sku_search = SKU_Search::get_instance();
+            if ($sku_search->is_enabled()) {
+                $sku_products = $sku_search->get_matching_product_ids($term);
+                $product_ids = array_merge($product_ids, $sku_products);
+            }
+        }
+
+        // Search by attributes if enabled
+        if (class_exists('\TRB_Product_Search\Attributes_Search')) {
+            $attr_search = Attributes_Search::get_instance();
+            if ($attr_search->is_enabled()) {
+                $attr_products = $attr_search->get_matching_product_ids($term);
+                $product_ids = array_merge($product_ids, $attr_products);
+            }
+        }
+
+        return array_unique($product_ids);
+    }
+
+    /**
+     * Extend the WHERE clause to include products by SKU and attributes.
+     *
+     * This adds an OR condition to include products that match by SKU or attributes
+     * in addition to the default search (title, content, excerpt).
+     *
+     * @param string $where The WHERE clause of the query.
+     * @param \WP_Query $query The WordPress query object.
+     * @return string Modified WHERE clause.
+     */
+    public function extend_search_where_clause($where, $query)
+    {
+        // Remove this filter immediately to prevent affecting other queries
+        remove_filter('posts_where', array($this, 'extend_search_where_clause'), 10);
+
+        // Only modify if we have extended product IDs and this is our target query
+        if (empty($this->extended_product_ids) || !$query->is_search()) {
+            return $where;
+        }
+
+        global $wpdb;
+
+        // Sanitize product IDs
+        $product_ids = array_map('intval', $this->extended_product_ids);
+        $ids_string = implode(',', $product_ids);
+
+        // Add OR condition to include products by ID
+        // This extends the search without replacing the original conditions
+        $where .= " OR ({$wpdb->posts}.ID IN ($ids_string) AND {$wpdb->posts}.post_type = 'product')";
+
+        // Clear the stored IDs
+        $this->extended_product_ids = array();
+
+        return $where;
     }
 
     /**
@@ -157,6 +266,13 @@ class Plugin_Init
         wp_localize_script('trb-product-search-js', 'trb_search_vars', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('trb_search_nonce'),
+            'home_url' => home_url('/'),
+            'strings' => array(
+                'loading' => __('Loading...', 'trb-product-search'),
+                'min_chars' => __('Minimum %d characters required', 'trb-product-search'),
+                'view_all' => __('View all results', 'trb-product-search'),
+                'error' => __('Error fetching results. Please try again.', 'trb-product-search'),
+            ),
         ));
     }
 

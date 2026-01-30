@@ -213,3 +213,24 @@
     font-size: 13px;
     color: #495057;
 }
+
+/* View All Results Link */
+.trb-view-all {
+    border-top: 2px solid #eee;
+    background-color: #f9f9f9;
+}
+
+.trb-view-all a {
+    display: block;
+    padding: 12px;
+    text-align: center;
+    text-decoration: none;
+    color: #007cba;
+    font-weight: 600;
+    transition: background-color 0.2s;
+}
+
+.trb-view-all a:hover {
+    background-color: #f0f0f0;
+    color: #005a87;
+}

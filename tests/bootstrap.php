@@ -192,6 +192,12 @@ if (!function_exists('admin_url')) {
     }
 }
 
+if (!function_exists('home_url')) {
+    function home_url($path = '') {
+        return 'http://example.com/' . ltrim($path, '/');
+    }
+}
+
 if (!function_exists('current_user_can')) {
     function current_user_can($capability) {
         return true;
@@ -555,6 +561,25 @@ if (!function_exists('get_permalink')) {
     }
 }
 
+// Mock conditional functions for query testing
+if (!function_exists('is_admin')) {
+    function is_admin() {
+        return false;
+    }
+}
+
+if (!function_exists('is_search')) {
+    function is_search() {
+        return true;
+    }
+}
+
+if (!function_exists('is_main_query')) {
+    function is_main_query() {
+        return true;
+    }
+}
+
 // Load plugin files for testing
 if (file_exists(__DIR__ . '/../includes/class-plugin-init.php')) {
     require_once __DIR__ . '/../includes/class-plugin-init.php';
@@ -564,6 +589,10 @@ if (file_exists(__DIR__ . '/../includes/class-plugin-init.php')) {
     require_once __DIR__ . '/../includes/class-ajax-handler.php';
     require_once __DIR__ . '/../includes/class-settings.php';
     require_once __DIR__ . '/../includes/class-typo-corrector.php';
+    require_once __DIR__ . '/../includes/class-sku-search.php';
+    require_once __DIR__ . '/../includes/class-attributes-search.php';
+    require_once __DIR__ . '/../includes/class-cache-manager.php';
+    require_once __DIR__ . '/../includes/class-search-analytics.php';
 }
 
 echo "TRB Product Search integration tests bootstrapped successfully." . PHP_EOL;
