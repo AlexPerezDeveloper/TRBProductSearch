@@ -66,6 +66,11 @@ class Plugin_Init
         \TRB_Product_Search\Settings::get_instance()->init();
         \TRB_Product_Search\Typo_Corrector::get_instance()->init();
         \TRB_Product_Search\Cache_Manager::get_instance()->init();
+        \TRB_Product_Search\Search_Analytics::get_instance()->init();
+
+        if (is_admin()) {
+            \TRB_Product_Search\Admin\Analytics_Dashboard::get_instance()->init();
+        }
     }
 
     /**
@@ -82,6 +87,12 @@ class Plugin_Init
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-sku-search.php';
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-attributes-search.php';
         require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-cache-manager.php';
+        require_once TRB_PRODUCT_SEARCH_PATH . 'includes/class-search-analytics.php';
+
+        // Admin classes
+        if (is_admin()) {
+            require_once TRB_PRODUCT_SEARCH_PATH . 'includes/admin/class-analytics-dashboard.php';
+        }
     }
 
     /**
@@ -117,6 +128,14 @@ class Plugin_Init
         // Core has (object_id, term_taxonomy_id) as PRIMARY and (term_taxonomy_id) as INDEX.
         // If we query by term_taxonomy_id AND object_id often, the primary key covers it.
         // So no need to add standard index there unless we have a different access pattern.
+
+        // Create analytics table
+        \TRB_Product_Search\Search_Analytics::create_table();
+
+        // Set default options
+        add_option('trb_analytics_enabled', true);
+        add_option('trb_analytics_retention_days', 90);
+        add_option('trb_analytics_track_guests', true);
     }
 
     /**

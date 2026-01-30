@@ -74,6 +74,11 @@ class Settings
         register_setting('trb_product_search_options', 'trb_search_attributes_enabled', array('sanitize_callback' => array($this, 'sanitize_checkbox'), 'default' => '0'));
         register_setting('trb_product_search_options', 'trb_search_selected_attributes', array('sanitize_callback' => array($this, 'sanitize_attributes'), 'default' => array()));
 
+        // Analytics settings
+        register_setting('trb_product_search_options', 'trb_analytics_enabled', array('sanitize_callback' => array($this, 'sanitize_checkbox'), 'default' => '1'));
+        register_setting('trb_product_search_options', 'trb_analytics_track_guests', array('sanitize_callback' => array($this, 'sanitize_checkbox'), 'default' => '1'));
+        register_setting('trb_product_search_options', 'trb_analytics_retention_days', array('sanitize_callback' => 'absint', 'default' => '90'));
+
         add_settings_section(
             'trb_search_general',
             __('General Settings', 'trb-product-search'),
@@ -104,6 +109,45 @@ class Settings
             'trb-product-search',
             'trb_search_general'
         );
+    }
+
+    /**
+     * Render the settings page with tabs.
+     */
+    public function render_settings_page()
+    {
+        $active_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'settings';
+        ?>
+        <div class="wrap">
+            <h1><?php echo esc_html__('TRB Product Search', 'trb-product-search'); ?></h1>
+
+            <h2 class="nav-tab-wrapper">
+                <a href="?page=trb-product-search&tab=settings"
+                    class="nav-tab <?php echo $active_tab === 'settings' ? 'nav-tab-active' : ''; ?>">
+                    <?php esc_html_e('Settings', 'trb-product-search'); ?>
+                </a>
+                <a href="?page=trb-product-search&tab=analytics"
+                    class="nav-tab <?php echo $active_tab === 'analytics' ? 'nav-tab-active' : ''; ?>">
+                    <?php esc_html_e('Analytics', 'trb-product-search'); ?>
+                </a>
+            </h2>
+
+            <?php if ($active_tab === 'settings'): ?>
+                <form method="post" action="options.php">
+                    <?php
+                    settings_fields('trb_product_search_options');
+                    do_settings_sections('trb-product-search');
+                    submit_button();
+                    ?>
+                </form>
+            <?php elseif ($active_tab === 'analytics'): ?>
+                <?php
+                // Render analytics dashboard
+                \TRB_Product_Search\Admin\Analytics_Dashboard::get_instance()->render_dashboard();
+                ?>
+            <?php endif; ?>
+        </div>
+        <?php
     }
 
     /**
@@ -204,11 +248,14 @@ class Settings
             <?php esc_html_e('Enable attribute search', 'trb-product-search'); ?>
         </label>
 
-        <fieldset id="trb_attributes_fieldset" style="margin-top: 10px; <?php echo '1' === $attributes_enabled ? '' : 'display: none;'; ?>">
-            <legend class="screen-reader-text"><?php esc_html_e('Select attributes to search', 'trb-product-search'); ?></legend>
-            <?php foreach ($available_attributes as $attribute) : ?>
+        <fieldset id="trb_attributes_fieldset"
+            style="margin-top: 10px; <?php echo '1' === $attributes_enabled ? '' : 'display: none;'; ?>">
+            <legend class="screen-reader-text"><?php esc_html_e('Select attributes to search', 'trb-product-search'); ?>
+            </legend>
+            <?php foreach ($available_attributes as $attribute): ?>
                 <label style="display: block; margin-bottom: 5px;">
-                    <input type="checkbox" name="trb_search_selected_attributes[]" value="<?php echo esc_attr($attribute->attribute_name); ?>" <?php checked(in_array($attribute->attribute_name, $selected_attributes), true); ?>>
+                    <input type="checkbox" name="trb_search_selected_attributes[]"
+                        value="<?php echo esc_attr($attribute->attribute_name); ?>" <?php checked(in_array($attribute->attribute_name, $selected_attributes), true); ?>>
                     <?php echo esc_html($attribute->attribute_label); ?> (<?php echo esc_html($attribute->attribute_name); ?>)
                 </label>
             <?php endforeach; ?>
@@ -219,8 +266,8 @@ class Settings
         </p>
 
         <script type="text/javascript">
-            jQuery(document).ready(function($) {
-                $('#trb_enable_attributes').on('change', function() {
+            jQuery(document).ready(function ($) {
+                $('#trb_enable_attributes').on('change', function () {
                     $('#trb_attributes_fieldset').toggle($(this).is(':checked'));
                 });
             });
@@ -245,24 +292,4 @@ class Settings
     /**
      * Render settings page.
      */
-    public function render_settings_page()
-    {
-        if (!current_user_can('manage_options')) {
-            return;
-        }
-        ?>
-        <div class="wrap">
-            <h1>
-                <?php echo esc_html(get_admin_page_title()); ?>
-            </h1>
-            <form action="options.php" method="post">
-                <?php
-                settings_fields('trb_product_search_options');
-                do_settings_sections('trb-product-search');
-                submit_button();
-                ?>
-            </form>
-        </div>
-        <?php
-    }
 }

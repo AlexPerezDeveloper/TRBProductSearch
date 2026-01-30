@@ -90,6 +90,10 @@ class Ajax_Handler
         $is_correction = $query_handler->has_correction();
         $correction_info = $query_handler->get_correction_info();
 
+        // Log search analytics
+        $analytics = Search_Analytics::get_instance();
+        $analytics->log_search($term, $query->post_count, $query->have_posts());
+
         if (!$query->have_posts()) {
             wp_send_json_error(array('message' => __('No products found', 'trb-product-search')));
         }
