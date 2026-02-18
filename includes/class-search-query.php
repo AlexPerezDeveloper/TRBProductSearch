@@ -114,7 +114,12 @@ class Search_Query
         // Check cache
         $cache = Cache_Manager::get_instance();
         $cache_key = $cache->get_search_key($term);
-        $cached_data = $cache->get($cache_key);
+        $dropdown_cache_enabled = get_option('trb_search_dropdown_cache_enabled', '0');
+        $cached_data = false;
+
+        if ($dropdown_cache_enabled) {
+            $cached_data = $cache->get($cache_key);
+        }
 
         if (false !== $cached_data) {
             $cache->debug("Hit for term: $term");
@@ -176,29 +181,33 @@ class Search_Query
             $this->matched_product_ids = array_unique(array_merge($sku_ids, $attr_ids));
 
             // Cache the result
-            $cache->set($cache_key, array(
-                'ids' => $this->matched_product_ids,
-                'has_sku_matches' => $this->has_sku_matches
-            ));
+            if ($dropdown_cache_enabled) {
+                $cache->set($cache_key, array(
+                    'ids' => $this->matched_product_ids,
+                    'has_sku_matches' => $this->has_sku_matches
+                ));
+            }
         }
 
         // Apply ordering based on settings
         $orderby_setting = $this->get_cached_option('trb_search_orderby', 'relevance');
         switch ($orderby_setting) {
             case 'popularity':
-                $args['meta_key'] = '_total_sales';
-                $args['orderby'] = 'meta_value_num';
-                $args['order'] = 'DESC';
+                // Use LEFT JOIN via filters to avoid excluding products without sales data
+                // $args['meta_key'] = '_total_sales'; // REMOVED
+                // $args['orderby'] = 'meta_value_num'; // REMOVED
+                add_filter('posts_join', array($this, 'join_sales_meta_for_orderby'), 10, 2);
+                add_filter('posts_orderby', array($this, 'sales_orderby'), 10, 2);
                 break;
             case 'price_asc':
-                $args['meta_key'] = '_price';
-                $args['orderby'] = 'meta_value_num';
-                $args['order'] = 'ASC';
+                // Use custom filter for price ordering
+                add_filter('posts_join', array($this, 'join_price_meta_for_orderby'), 10, 2);
+                add_filter('posts_orderby', array($this, 'price_orderby_asc'), 10, 2);
                 break;
             case 'price_desc':
-                $args['meta_key'] = '_price';
-                $args['orderby'] = 'meta_value_num';
-                $args['order'] = 'DESC';
+                // Use custom filter for price ordering
+                add_filter('posts_join', array($this, 'join_price_meta_for_orderby'), 10, 2);
+                add_filter('posts_orderby', array($this, 'price_orderby_desc'), 10, 2);
                 break;
             case 'date':
                 $args['orderby'] = 'date';
@@ -206,6 +215,9 @@ class Search_Query
                 break;
             // relevance is handled by the priority_orderby filter
         }
+
+        // Optimize performance and avoid SQL_CALC_FOUND_ROWS issues
+        $args['no_found_rows'] = true;
 
         // Allow modifying args
         $args = apply_filters('trb_product_search_args', $args, $term);
@@ -220,15 +232,37 @@ class Search_Query
             add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
         }
 
+        // Debug logging
+        $debug_mode = get_option('trb_search_debug_mode', '0');
+        if ($debug_mode) {
+            add_filter('posts_request', array($this, 'log_search_query'), 999);
+        }
+
         $args['s'] = $term; // Trigger search logic
 
         $query = new \WP_Query($args);
 
         // Cleanup filters
         remove_filter('posts_search', array($this, 'custom_search_filter'), 10);
+        if ($orderby_setting === 'popularity') {
+            remove_filter('posts_join', array($this, 'join_sales_meta_for_orderby'), 10);
+            remove_filter('posts_orderby', array($this, 'sales_orderby'), 10);
+        }
+        if ($orderby_setting === 'price_asc') {
+            remove_filter('posts_join', array($this, 'join_price_meta_for_orderby'), 10);
+            remove_filter('posts_orderby', array($this, 'price_orderby_asc'), 10);
+        }
+        if ($orderby_setting === 'price_desc') {
+            remove_filter('posts_join', array($this, 'join_price_meta_for_orderby'), 10);
+            remove_filter('posts_orderby', array($this, 'price_orderby_desc'), 10);
+        }
         if ($this->sku_search->is_enabled() && $this->has_sku_matches) {
             remove_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10);
             remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
+        }
+
+        if ($debug_mode) {
+            remove_filter('posts_request', array($this, 'log_search_query'), 999);
         }
         $this->current_search_terms = array();
         $this->matched_product_ids = array();
@@ -291,6 +325,18 @@ class Search_Query
 
                 // Cleanup filters again
                 remove_filter('posts_search', array($this, 'custom_search_filter'), 10);
+                if ($orderby_setting === 'popularity') {
+                    remove_filter('posts_join', array($this, 'join_sales_meta_for_orderby'), 10);
+                    remove_filter('posts_orderby', array($this, 'sales_orderby'), 10);
+                }
+                if ($orderby_setting === 'price_asc') {
+                    remove_filter('posts_join', array($this, 'join_price_meta_for_orderby'), 10);
+                    remove_filter('posts_orderby', array($this, 'price_orderby_asc'), 10);
+                }
+                if ($orderby_setting === 'price_desc') {
+                    remove_filter('posts_join', array($this, 'join_price_meta_for_orderby'), 10);
+                    remove_filter('posts_orderby', array($this, 'price_orderby_desc'), 10);
+                }
                 if ($this->sku_search->is_enabled() && $this->has_sku_matches) {
                     remove_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10);
                     remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
@@ -318,7 +364,12 @@ class Search_Query
         // Check cache with tokens and logic for multi-word queries
         $cache = Cache_Manager::get_instance();
         $cache_key = $cache->get_search_key($term . '|' . implode(',', $tokens) . '|' . $search_logic);
-        $cached_data = $cache->get($cache_key);
+        $dropdown_cache_enabled = get_option('trb_search_dropdown_cache_enabled', '0');
+        $cached_data = false;
+
+        if ($dropdown_cache_enabled) {
+            $cached_data = $cache->get($cache_key);
+        }
 
         if (false !== $cached_data) {
             $cache->debug("Hit for multi-word term: $term (logic: $search_logic)");
@@ -353,29 +404,31 @@ class Search_Query
             }
 
             // Cache the result
-            $cache->set($cache_key, array(
-                'ids' => $this->matched_product_ids,
-                'has_sku_matches' => $this->has_sku_matches
-            ));
+            if ($dropdown_cache_enabled) {
+                $cache->set($cache_key, array(
+                    'ids' => $this->matched_product_ids,
+                    'has_sku_matches' => $this->has_sku_matches
+                ));
+            }
         }
 
         // Apply ordering based on settings
         $orderby_setting = $this->get_cached_option('trb_search_orderby', 'relevance');
         switch ($orderby_setting) {
             case 'popularity':
-                $args['meta_key'] = '_total_sales';
-                $args['orderby'] = 'meta_value_num';
-                $args['order'] = 'DESC';
+                // Use LEFT JOIN via filters to avoid excluding products without sales data
+                add_filter('posts_join', array($this, 'join_sales_meta_for_orderby'), 10, 2);
+                add_filter('posts_orderby', array($this, 'sales_orderby'), 10, 2);
                 break;
             case 'price_asc':
-                $args['meta_key'] = '_price';
-                $args['orderby'] = 'meta_value_num';
-                $args['order'] = 'ASC';
+                // Use custom filter for price ordering
+                add_filter('posts_join', array($this, 'join_price_meta_for_orderby'), 10, 2);
+                add_filter('posts_orderby', array($this, 'price_orderby_asc'), 10, 2);
                 break;
             case 'price_desc':
-                $args['meta_key'] = '_price';
-                $args['orderby'] = 'meta_value_num';
-                $args['order'] = 'DESC';
+                // Use custom filter for price ordering
+                add_filter('posts_join', array($this, 'join_price_meta_for_orderby'), 10, 2);
+                add_filter('posts_orderby', array($this, 'price_orderby_desc'), 10, 2);
                 break;
             case 'date':
                 $args['orderby'] = 'date';
@@ -383,6 +436,9 @@ class Search_Query
                 break;
             // relevance is handled by the priority_orderby filter
         }
+
+        // Optimize performance and avoid SQL_CALC_FOUND_ROWS issues
+        $args['no_found_rows'] = true;
 
         // Allow modifying args
         $args = apply_filters('trb_product_search_args', $args, $term);
@@ -398,15 +454,29 @@ class Search_Query
             add_filter('posts_orderby', array($this, 'priority_orderby'), 10, 2);
         }
 
+        // Debug logging
+        $debug_mode = get_option('trb_search_debug_mode', '0');
+        if ($debug_mode) {
+            add_filter('posts_request', array($this, 'log_search_query'), 999);
+        }
+
         $args['s'] = $term; // Trigger search logic
 
         $query = new \WP_Query($args);
 
         // Cleanup filters
         remove_filter('posts_search', array($this, 'custom_search_filter'), 10);
+        if ($orderby_setting === 'popularity') {
+            remove_filter('posts_join', array($this, 'join_sales_meta_for_orderby'), 10);
+            remove_filter('posts_orderby', array($this, 'sales_orderby'), 10);
+        }
         if ($this->sku_search->is_enabled() && $this->has_sku_matches) {
             remove_filter('posts_join', array($this, 'join_postmeta_for_orderby'), 10);
             remove_filter('posts_orderby', array($this, 'priority_orderby'), 10);
+        }
+
+        if ($debug_mode) {
+            remove_filter('posts_request', array($this, 'log_search_query'), 999);
         }
 
         // If no results and term is eligible for correction
@@ -522,6 +592,19 @@ class Search_Query
 
         // Return unique IDs
         return array_unique($all_ids);
+    }
+
+    /**
+     * Get option with caching.
+     *
+     * @param string $option_name Option name.
+     * @param mixed  $default     Default value.
+     * @return mixed Option value.
+     */
+    private function get_cached_option($option_name, $default = false)
+    {
+        // Bypass cache for now to ensure settings are fresh
+        return get_option($option_name, $default);
     }
 
     /**
@@ -738,28 +821,7 @@ class Search_Query
         return implode(', ', $orderby_clauses);
     }
 
-    /**
-     * Get an option value with caching.
-     *
-     * @param string $option_name Option name.
-     * @param mixed  $default     Default value.
-     * @return mixed Option value.
-     */
-    private function get_cached_option($option_name, $default = '')
-    {
-        $cache = Cache_Manager::get_instance();
-        $cache_key = $cache->get_option_key($option_name);
-        $cached_value = $cache->get($cache_key);
 
-        if (false !== $cached_value) {
-            return $cached_value;
-        }
-
-        $value = get_option($option_name, $default);
-        $cache->set($cache_key, $value);
-
-        return $value;
-    }
 
     /**
      * Get the original search term.
@@ -830,9 +892,109 @@ class Search_Query
         $stop_words = array('el', 'la', 'de', 'en', 'y', 'a', 'los', 'las', 'un', 'una', 'del', 'al', 'con', 'por', 'para');
         $tokens = array_diff($tokens, $stop_words);
 
-        // Limit to 5 words max (performance)
-        $tokens = array_slice($tokens, 0, 5);
+        array_splice($tokens, 5);
 
         return array_values($tokens);
+    }
+
+    /**
+     * Log the final SQL query for debugging purposes.
+     *
+     * @param string $request The SQL query.
+     * @return string The SQL query (unmodified).
+     */
+    public function log_search_query($request)
+    {
+        error_log('TRB Search Query SQL: ' . $request);
+        return $request;
+    }
+
+    /**
+     * Join postmeta for sales ordering (LEFT JOIN to include products with no sales).
+     *
+     * @param string    $join     Current join clause.
+     * @param \WP_Query $wp_query WP_Query instance.
+     * @return string Modified join clause.
+     */
+    public function join_sales_meta_for_orderby($join, $wp_query)
+    {
+        global $wpdb;
+
+        // Ensure we only join once
+        if (strpos($join, 'mt_total_sales') === false) {
+            $join .= " LEFT JOIN {$wpdb->postmeta} AS mt_total_sales ON ({$wpdb->posts}.ID = mt_total_sales.post_id AND mt_total_sales.meta_key = '_total_sales') ";
+        }
+
+        return $join;
+    }
+
+    /**
+     * Order by sales meta value (treating NULL as 0).
+     *
+     * @param string    $orderby  Current orderby clause.
+     * @param \WP_Query $wp_query WP_Query instance.
+     * @return string Modified orderby clause.
+     */
+    public function sales_orderby($orderby, $wp_query)
+    {
+        if (empty($orderby)) {
+            return "COALESCE(mt_total_sales.meta_value+0, 0) DESC";
+        }
+        return "COALESCE(mt_total_sales.meta_value+0, 0) DESC, {$orderby}";
+    }
+
+    /**
+     * Join postmeta for price ordering (LEFT JOIN to include products with no price).
+     *
+     * @param string    $join     Current join clause.
+     * @param \WP_Query $wp_query WP_Query instance.
+     * @return string Modified join clause.
+     */
+    public function join_price_meta_for_orderby($join, $wp_query)
+    {
+        global $wpdb;
+
+        // Ensure we only join once
+        if (strpos($join, 'mt_price') === false) {
+            $join .= " LEFT JOIN {$wpdb->postmeta} AS mt_price ON ({$wpdb->posts}.ID = mt_price.post_id AND mt_price.meta_key = '_price') ";
+        }
+
+        return $join;
+    }
+
+    /**
+     * Order by price ASC.
+     *
+     * @param string    $orderby  Current orderby clause.
+     * @param \WP_Query $wp_query WP_Query instance.
+     * @return string Modified orderby clause.
+     */
+    public function price_orderby_asc($orderby, $wp_query)
+    {
+        // Push NULL prices to the bottom (treat as very high number)
+        $order_clause = "COALESCE(mt_price.meta_value+0, 999999999) ASC";
+
+        if (empty($orderby)) {
+            return $order_clause;
+        }
+        return "{$order_clause}, {$orderby}";
+    }
+
+    /**
+     * Order by price DESC.
+     *
+     * @param string    $orderby  Current orderby clause.
+     * @param \WP_Query $wp_query WP_Query instance.
+     * @return string Modified orderby clause.
+     */
+    public function price_orderby_desc($orderby, $wp_query)
+    {
+        // Treat NULL prices as 0
+        $order_clause = "COALESCE(mt_price.meta_value+0, 0) DESC";
+
+        if (empty($orderby)) {
+            return $order_clause;
+        }
+        return "{$order_clause}, {$orderby}";
     }
 }

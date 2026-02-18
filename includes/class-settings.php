@@ -75,6 +75,8 @@ class Settings
         register_setting('trb_product_search_options', 'trb_search_selected_attributes', array('sanitize_callback' => array($this, 'sanitize_attributes'), 'default' => array()));
         register_setting('trb_product_search_options', 'trb_search_orderby', array('sanitize_callback' => 'sanitize_text_field', 'default' => 'relevance'));
         register_setting('trb_product_search_options', 'trb_search_logic', array('sanitize_callback' => array($this, 'sanitize_search_logic'), 'default' => 'and'));
+        register_setting('trb_product_search_options', 'trb_search_dropdown_cache_enabled', array('sanitize_callback' => array($this, 'sanitize_checkbox'), 'default' => '0'));
+        register_setting('trb_product_search_options', 'trb_search_debug_mode', array('sanitize_callback' => array($this, 'sanitize_checkbox'), 'default' => '0'));
 
         // Analytics settings
         register_setting('trb_product_search_options', 'trb_analytics_enabled', array('sanitize_callback' => array($this, 'sanitize_checkbox'), 'default' => '1'));
@@ -140,6 +142,22 @@ class Settings
             'trb_search_logic',
             __('Logic for multi-word searches', 'trb-product-search'),
             array($this, 'render_search_logic_field'),
+            'trb-product-search',
+            'trb_search_general'
+        );
+
+        add_settings_field(
+            'trb_search_dropdown_cache_enabled',
+            __('Enable Dropdown Cache', 'trb-product-search'),
+            array($this, 'render_dropdown_cache_checkbox'),
+            'trb-product-search',
+            'trb_search_general'
+        );
+
+        add_settings_field(
+            'trb_search_debug_mode',
+            __('Enable Debug Mode', 'trb-product-search'),
+            array($this, 'render_debug_mode_checkbox'),
             'trb-product-search',
             'trb_search_general'
         );
@@ -371,6 +389,42 @@ class Settings
             <?php esc_html_e('Smart Search uses flexible matching but ensures the most relevant results (containing all terms) appear first.', 'trb-product-search'); ?>
         </p>
         <?php
+    }
+
+
+
+    /**
+     * Render dropdown cache checkbox.
+     */
+    public function render_dropdown_cache_checkbox()
+    {
+        $enabled = get_option('trb_search_dropdown_cache_enabled', '0');
+        ?>
+        <label>
+            <input type="checkbox" name="trb_search_dropdown_cache_enabled" value="1" <?php checked('1', $enabled); ?>>
+            <?php esc_html_e('Enable caching for dropdown search results', 'trb-product-search'); ?>
+        </label>
+        <p class="description">
+            <?php esc_html_e('Cache HTML results to improve performance. Disable if you experience issues with server caching.', 'trb-product-search'); ?>
+        </p>
+        <?php
+    }
+
+    /**
+     * Render debug mode checkbox.
+     */
+    public function render_debug_mode_checkbox()
+    {
+        $enabled = get_option('trb_search_debug_mode', '0');
+        ?>
+                <label>
+                    <input type="checkbox" name="trb_search_debug_mode" value="1" <?php checked('1', $enabled); ?>>
+                    <?php esc_html_e('Enable Debug Logging', 'trb-product-search'); ?>
+                </label>
+                <p class="description">
+                    <?php esc_html_e('Log search queries and errors to the PHP error log. Useful for troubleshooting.', 'trb-product-search'); ?>
+                </p>
+                <?php
     }
 
     /**

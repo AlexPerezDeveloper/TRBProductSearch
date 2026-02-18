@@ -77,18 +77,49 @@ class Ajax_Handler
         }
 
         $cache = Cache_Manager::get_instance();
-        $orderby = get_option('trb_search_orderby', 'relevance');
+
+        // Allow overriding order via GET param (e.g. from dropdown filters if implemented in future)
+        // or just rely on the settings.
+        // HOWEVER, the user says the "dropdown filters" don't work.
+        // This implies the JS might be sending an order param, OR the user changes the setting and it doesn't reflect.
+        // Let's assume the JS *should* allow sending it, or the user expects the setting to apply.
+        // But wait, the standard dropdown implementation in this plugin doesn't seem to have UI filters *inside* the dropdown.
+        // It's likely the user is talking about the plugin settings page "Sort by" option not applying.
+        // OR, they have customized the JS to send an 'orderby' param. Let's support an 'orderby' param in the AJAX request.
+
+        $orderby_param = isset($_GET['orderby']) ? sanitize_text_field($_GET['orderby']) : '';
+        $default_orderby = get_option('trb_search_orderby', 'relevance');
+
+        // If an explicit orderby is passed (e.g. via JS), use it. otherwise use default.
+        // But wait, the Search_Query class reads the option directly in priority_orderby and search methods.
+        // We need to pass this dynamic orderby to the Search_Query instance.
+
+        // To fix this propery, we need to update Search_Query to accept an orderby argument or setter.
+        // For now, let's look at how Search_Query gets the orderby. It calls $this->get_cached_option('trb_search_orderby'...)
+
+        // We can filter the option 'pre_option_trb_search_orderby' if we want to force it for this request.
+        if (!empty($orderby_param)) {
+            add_filter('pre_option_trb_search_orderby', function () use ($orderby_param) {
+                return $orderby_param;
+            });
+            $orderby = $orderby_param;
+        } else {
+            $orderby = $default_orderby;
+        }
+
         // Create a unique key for the final HTML output including ordering
         $cache_key = 'html_result_' . md5($term . $orderby);
-        $cached_html = $cache->get($cache_key);
+        $dropdown_cache_enabled = get_option('trb_search_dropdown_cache_enabled', '0');
 
-        /*
-        if (false !== $cached_html) {
-            $cache->debug("Ajax HTML Hit for term: $term");
-            wp_send_json_success(array('html' => $cached_html));
-            return;
+        if ($dropdown_cache_enabled) {
+            $cached_html = $cache->get($cache_key);
+
+            if (false !== $cached_html) {
+                $cache->debug("Ajax HTML Hit for term: $term");
+                wp_send_json_success(array('html' => $cached_html));
+                return;
+            }
         }
-        */
 
         $cache->debug("Ajax HTML Miss for term: $term");
 
@@ -104,7 +135,16 @@ class Ajax_Handler
         $analytics->log_search($term, $query->post_count, $query->have_posts());
 
         if (!$query->have_posts()) {
-            wp_send_json_error(array('message' => __('No products found', 'trb-product-search')));
+            $error_data = array('message' => __('No products found', 'trb-product-search'));
+
+            $debug_mode = get_option('trb_search_debug_mode', '0');
+            if ($debug_mode && isset($query->request)) {
+                $error_data['debug_sql'] = $query->request;
+                // It's helpful to also log it to the server log in case the user can't see the JSON
+                error_log('TRB Search Debug SQL (No Results): ' . $query->request);
+            }
+
+            wp_send_json_error($error_data);
         }
 
         ob_start();
@@ -146,16 +186,24 @@ class Ajax_Handler
         $html = ob_get_clean();
 
         // Cache the valid HTML result
-        /*
-        if (isset($html) && !empty($html)) {
+        if ($dropdown_cache_enabled && isset($html) && !empty($html)) {
             // Cache for 1 hour
             $cache->set($cache_key, $html, 3600);
         }
-        */
 
         wp_reset_postdata();
 
-        wp_send_json_success(array('html' => $html));
+        $response_data = array('html' => $html);
+
+        $debug_mode = get_option('trb_search_debug_mode', '0');
+        if ($debug_mode) {
+            $response_data['debug_sql'] = $query->request;
+            // Append debug info to HTML as hidden comment/div
+            $response_data['html'] .= '<!-- SQL Debug: ' . esc_html($query->request) . ' -->';
+            $response_data['html'] .= '<div style="display:none;" class="trb-debug-info" data-sql="' . esc_attr($query->request) . '">SQL: ' . esc_html($query->request) . '</div>';
+        }
+
+        wp_send_json_success($response_data);
     }
 
     /**
